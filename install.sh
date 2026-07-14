@@ -79,12 +79,34 @@ mkdir -p "$BIN_DIR"
 ln -sf "$INSTALL_DIR/mini-moulinette" "$BIN_DIR/mini-moulinette"
 
 info "Installed: $BIN_DIR/mini-moulinette"
+
+# add BIN_DIR to PATH in the shell rc files if missing
+add_path_to_rc()
+{
+	rc="$1"
+	line="export PATH=\"$BIN_DIR:\$PATH\""
+	[ -f "$rc" ] || return 0
+	if ! grep -Fq "$line" "$rc"; then
+		printf '\n# added by mini-moulinette installer\n%s\n' "$line" >> "$rc"
+		info "Added $BIN_DIR to PATH in $rc"
+		UPDATED_RC=1
+	fi
+}
+
 case ":$PATH:" in
 	*":$BIN_DIR:"*) ;;
 	*)
-		printf '\n\033[1;33mwarning:\033[0m %s is not in your PATH.\n' "$BIN_DIR"
-		printf 'Add this to your shell profile (~/.zshrc or ~/.bashrc):\n\n'
-		printf '    export PATH="%s:$PATH"\n\n' "$BIN_DIR"
+		UPDATED_RC=0
+		add_path_to_rc "$HOME/.zshrc"
+		add_path_to_rc "$HOME/.bashrc"
+		# no rc file at all -> create one for the current shell
+		if [ "$UPDATED_RC" -eq 0 ]; then
+			case "${SHELL:-}" in
+				*zsh) touch "$HOME/.zshrc" && add_path_to_rc "$HOME/.zshrc" ;;
+				*) touch "$HOME/.bashrc" && add_path_to_rc "$HOME/.bashrc" ;;
+			esac
+		fi
+		printf '\033[1;33mnote:\033[0m open a new terminal (or run: export PATH="%s:$PATH")\n' "$BIN_DIR"
 		;;
 esac
 

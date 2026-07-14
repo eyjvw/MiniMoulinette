@@ -1,31 +1,34 @@
 # MiniMoulinette
 
-Testeur parallèle pour les exercices de la Piscine C 42. Pour chaque exercice,
-il compile un `main` de test avec le fichier de l'étudiant (`cc -Wall -Wextra
--Werror`), exécute le binaire et compare la sortie standard à la sortie
-attendue. Les modules de build (Makefile, scripts) sont validés par un
-`check.sh` dédié.
+🇫🇷 [Version française](README.fr.md)
 
-## Installation rapide (sans Rust)
+Parallel test runner for the 42 C Piscine exercises. For each exercise it
+compiles a test `main` together with the student's file (`cc -Wall -Wextra
+-Werror`), runs the binary and diffs standard output against the expected
+output. Build-oriented modules (Makefile, scripts) are graded by a dedicated
+`check.sh`.
+
+## Quick install (no Rust needed)
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/eyjvw/MiniMoulinette/main/install.sh | sh
 ```
 
-Télécharge le binaire précompilé (Linux x86_64/arm64, macOS Intel/Apple
-Silicon) + les suites de tests dans `~/.mini-moulinette`, et crée la commande
-`mini-moulinette` dans `~/.local/bin`. Seul `cc` est requis pour lancer les
-tests. S'il n'existe pas de binaire pour la plateforme, le script recompile
-avec cargo si disponible.
+Downloads the prebuilt binary (Linux x86_64/arm64, macOS Intel/Apple Silicon)
+plus the test suites into `~/.mini-moulinette`, creates the `mini-moulinette`
+command in `~/.local/bin` and adds that directory to your `PATH` in
+`~/.zshrc` / `~/.bashrc` if needed. Only `cc` is required to run the tests.
+If no prebuilt binary exists for your platform, the script falls back to a
+cargo build when available.
 
 ```sh
-cd ~/piscine/C07        # dossier contenant ex00/, ex01/, ...
+cd ~/piscine/C07        # directory containing ex00/, ex01/, ...
 mini-moulinette C07
 ```
 
-## Build depuis les sources
+## Building from source
 
-### Prérequis
+### Requirements
 
 - `cc` (gcc/clang)
 - Rust + Cargo (`curl https://sh.rustup.rs -sSf | sh`)
@@ -36,64 +39,66 @@ mini-moulinette C07
 cargo build --release
 ```
 
-Le binaire est produit dans `target/release/MiniMoulinette`.
+The binary is produced at `target/release/MiniMoulinette`.
 
-## Lancer
+## Usage
 
 ```sh
-# tester un module dans le dossier courant
+# grade a module in the current directory
 ./target/release/MiniMoulinette C07
 
-# forme explicite avec dossier étudiant + mode strict
+# explicit form with a student directory + strict mode
 ./target/release/MiniMoulinette run C07 --path sandbox/C07 --strict
 ```
 
-- `--path <dir>` : dossier contenant les rendus (`exNN/ft_xxx.c`). Défaut : `.`
-- `--strict` : arrête la notation dès qu'un exercice échoue.
+- `--path <dir>`: directory containing the submissions (`exNN/ft_xxx.c`).
+  Default: `.`
+- `--strict`: stop grading as soon as one exercise fails.
 
-Exemple contre les solutions de référence :
+Example against the reference solutions:
 
 ```sh
 ./target/release/MiniMoulinette run C08 --path sandbox/C08
 ```
 
-## Couverture
+## Coverage
 
-| Module | Contenu | Testé |
-|--------|---------|-------|
-| C00–C05, C07 | fonctions | ✅ diff stdout |
+| Module | Content | Tested |
+|--------|---------|--------|
+| C00–C05, C07 | functions | ✅ stdout diff |
 | C08 | headers / macros / structs | ✅ (`.h` via `-I`) |
-| C09 | ft_split + libft_creator.sh + Makefile | ✅ (dont build-check) |
-| C10 | programmes (ft_display_file, ft_cat, ft_tail, ft_hexdump) | ✅ build-check, diff vs `cat`/`tail`/`hexdump` système |
-| C11 | pointeurs de fonction + do-op | ✅ (do-op via build-check) |
-| C12 | listes chaînées (`ft_list.h` étudiant via `-I`) | ✅ |
-| C13 | arbres binaires (`ft_btree.h` étudiant via `-I`) | ✅ |
-| C06 | arguments (main étudiant) | ⚠️ non testé |
+| C09 | ft_split + libft_creator.sh + Makefile | ✅ (incl. build-check) |
+| C10 | programs (ft_display_file, ft_cat, ft_tail, ft_hexdump) | ✅ build-check, diff vs system `cat`/`tail`/`hexdump` |
+| C11 | function pointers + do-op | ✅ (do-op via build-check) |
+| C12 | linked lists (student `ft_list.h` via `-I`) | ✅ |
+| C13 | binary trees (student `ft_btree.h` via `-I`) | ✅ |
+| C06 | program arguments (student main) | ⚠️ not tested |
 
-Note C12/C13 : compilés avec gcc ≥ 15 (C23 par défaut), les prototypes
-historiques `int (*cmp)()` du sujet ne compilent plus — les tests utilisent
-`int (*cmp)(void *, void *)`. Le rendu étudiant doit faire pareil.
+C12/C13 note: with gcc ≥ 15 (C23 by default) the subject's historical
+`int (*cmp)()` prototypes no longer compile — the tests use
+`int (*cmp)(void *, void *)`. Student submissions must do the same.
 
-`sandbox/` contient une solution de référence par exercice (sert à générer les
-`.out` et à vérifier l'absence de crash).
+`sandbox/` holds one reference solution per exercise (used to generate the
+`.out` files and to check for crashes).
 
-## Régénérer les tests
+## Regenerating the tests
 
-Les cas de test (`tests/<module>/<ex>/test_*.c` + `.out`) sont produits par :
+The test cases (`tests/<module>/<ex>/test_*.c` + `.out`) are produced by:
 
 ```sh
 python3 gen_moulinette.py
 ```
 
-Chaque `.out` est capturé en compilant le test contre la solution de référence
-de `sandbox/`, donc la sortie attendue reflète une implémentation correcte.
+Each `.out` is captured by compiling the test against the reference solution
+in `sandbox/`, so the expected output reflects a correct implementation.
 
-## Modes de test
+## Test modes
 
-- **Diff stdout** (défaut) : `test_*.c` + `.out` dans le dossier de l'exercice ;
-  `files.txt` liste le(s) fichier(s) à rendre (plusieurs lignes possibles).
-- **Build-check** : si le dossier de test contient `check.sh`, le harness
-  l'exécute (`bash check.sh <dir_étudiant>`, timeout 30 s) et note sur son code
-  de sortie. Utilisé pour C09 ex00 (script) et ex01 (Makefile).
+- **Stdout diff** (default): `test_*.c` + `.out` in the exercise directory;
+  `files.txt` lists the file(s) to submit (several lines allowed).
+- **Build-check**: if the test directory contains `check.sh`, the harness runs
+  it (`bash check.sh <student_dir>`, 30 s timeout) and grades on its exit
+  code. Used for C09 ex00 (script), ex01 (Makefile), all of C10, and C11 ex05
+  (do-op).
 
-Timeout d'exécution par test : 5 s (anti-boucle infinie).
+Per-test execution timeout: 5 s (infinite-loop guard).
