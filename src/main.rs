@@ -13,7 +13,10 @@ use indicatif::{ProgressBar, ProgressStyle};
 const REPO: &str = "eyjvw/MiniMoulinette";
 
 #[derive(Parser, Debug)]
-#[command(name = "mini-moulinette", version, about = "Parallel test runner for 42 assignments", long_about = None)]
+#[command(name = "mini-moulinette",
+          disable_help_flag = true,
+          disable_help_subcommand = true,
+          disable_version_flag = true)]
 struct Cli {
     #[arg(name = "ASSIGNMENT")]
     assignment: Option<String>,
@@ -24,6 +27,7 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
+    #[command(disable_help_flag = true)]
     Run {
         #[arg(name = "ASSIGNMENT")]
         assignment: String,
@@ -32,25 +36,80 @@ enum Commands {
         #[arg(short, long)]
         strict: bool,
     },
-    Init,
+    #[command(disable_help_flag = true)]
     Update,
+    #[command(disable_help_flag = true)]
+    Version,
+    #[command(disable_help_flag = true)]
+    Help,
+}
+
+fn print_help() {
+    let v = env!("CARGO_PKG_VERSION");
+    println!();
+    println!("{}", "╭────────────────────────────────────────────────────────────╮".cyan().bold());
+    let title = format!("MiniMoulinette v{}", v);
+    println!("{} {} {}", "│".cyan().bold(),
+        pad_str(&title, 58, Alignment::Center, None).bold(), "│".cyan().bold());
+    let sub = "Testeur local pour la Piscine C (C00 → C13)";
+    println!("{} {} {}", "│".cyan().bold(),
+        pad_str(sub, 58, Alignment::Center, None), "│".cyan().bold());
+    println!("{}", "╰────────────────────────────────────────────────────────────╯".cyan().bold());
+    println!();
+    let entry = |cmd: &str, w: usize, desc: &str| {
+        println!("  {}  {}", pad_str(cmd, w, Alignment::Left, None).bold(), desc.dimmed());
+    };
+    println!("{}", "USAGE".bold().yellow());
+    entry("mini-moulinette <MODULE>", 40, "note le module dans le dossier courant");
+    entry("mini-moulinette run <MODULE> [options]", 40, "forme explicite");
+    println!();
+    println!("{}", "COMMANDES".bold().yellow());
+    entry("run <MODULE>", 18, "note un module (ex : C07)");
+    entry("update", 18, "met à jour vers la dernière version");
+    entry("version", 18, "affiche la version installée");
+    entry("help", 18, "affiche cette aide");
+    println!();
+    println!("{}", "OPTIONS (run)".bold().yellow());
+    entry("-p, --path <dir>", 18, "dossier du rendu (défaut : dossier courant)");
+    entry("-s, --strict", 18, "s'arrête au premier exercice raté");
+    println!();
+    println!("{}", "EXEMPLES".bold().yellow());
+    println!("  {}", "cd ~/piscine/C07 && mini-moulinette C07".dimmed());
+    println!("  {}", "mini-moulinette run C07 --path ~/rendu/C07 --strict".dimmed());
+    println!();
+    println!("{}", "ENV".bold().yellow());
+    println!("  {}   désactive la vérification de mise à jour", "MINI_MOULINETTE_NO_UPDATE=1".bold());
+    println!();
 }
 
 fn main() -> Result<()> {
+    // -h/--help/-V/--version are disabled in clap (the subcommands replace
+    // them); catch them here so they show the custom help instead of an error
+    let raw: Vec<String> = std::env::args().skip(1).collect();
+    if raw.iter().any(|a| a == "-h" || a == "--help") {
+        print_help();
+        return Ok(());
+    }
+    if raw.iter().any(|a| a == "-V" || a == "--version") {
+        println!("mini-moulinette {}", env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
+
     let cli = Cli::parse();
     match &cli.command {
         Some(Commands::Run { assignment, path, strict }) => {
             maybe_auto_update();
             run_assignment(assignment, path, *strict)?
         }
-        Some(Commands::Init) => println!("Initializing..."),
         Some(Commands::Update) => run_update(true)?,
+        Some(Commands::Version) => println!("mini-moulinette {}", env!("CARGO_PKG_VERSION")),
+        Some(Commands::Help) => print_help(),
         None => {
             if let Some(assignment) = &cli.assignment {
                 maybe_auto_update();
                 run_assignment(assignment, &PathBuf::from("."), false)?;
             } else {
-                println!("{}", "Please provide an assignment name".red());
+                print_help();
             }
         }
     }
