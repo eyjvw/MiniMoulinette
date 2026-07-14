@@ -6,12 +6,31 @@ il compile un `main` de test avec le fichier de l'étudiant (`cc -Wall -Wextra
 attendue. Les modules de build (Makefile, scripts) sont validés par un
 `check.sh` dédié.
 
-## Prérequis
+## Installation rapide (sans Rust)
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/eyjvw/MiniMoulinette/main/install.sh | sh
+```
+
+Télécharge le binaire précompilé (Linux x86_64/arm64, macOS Intel/Apple
+Silicon) + les suites de tests dans `~/.mini-moulinette`, et crée la commande
+`mini-moulinette` dans `~/.local/bin`. Seul `cc` est requis pour lancer les
+tests. S'il n'existe pas de binaire pour la plateforme, le script recompile
+avec cargo si disponible.
+
+```sh
+cd ~/piscine/C07        # dossier contenant ex00/, ex01/, ...
+mini-moulinette C07
+```
+
+## Build depuis les sources
+
+### Prérequis
 
 - `cc` (gcc/clang)
 - Rust + Cargo (`curl https://sh.rustup.rs -sSf | sh`)
 
-## Build
+### Build
 
 ```sh
 cargo build --release
@@ -45,7 +64,15 @@ Exemple contre les solutions de référence :
 | C00–C05, C07 | fonctions | ✅ diff stdout |
 | C08 | headers / macros / structs | ✅ (`.h` via `-I`) |
 | C09 | ft_split + libft_creator.sh + Makefile | ✅ (dont build-check) |
+| C10 | programmes (ft_display_file, ft_cat, ft_tail, ft_hexdump) | ✅ build-check, diff vs `cat`/`tail`/`hexdump` système |
+| C11 | pointeurs de fonction + do-op | ✅ (do-op via build-check) |
+| C12 | listes chaînées (`ft_list.h` étudiant via `-I`) | ✅ |
+| C13 | arbres binaires (`ft_btree.h` étudiant via `-I`) | ✅ |
 | C06 | arguments (main étudiant) | ⚠️ non testé |
+
+Note C12/C13 : compilés avec gcc ≥ 15 (C23 par défaut), les prototypes
+historiques `int (*cmp)()` du sujet ne compilent plus — les tests utilisent
+`int (*cmp)(void *, void *)`. Le rendu étudiant doit faire pareil.
 
 `sandbox/` contient une solution de référence par exercice (sert à générer les
 `.out` et à vérifier l'absence de crash).

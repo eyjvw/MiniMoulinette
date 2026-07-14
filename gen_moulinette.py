@@ -518,6 +518,625 @@ def t_show_tab():
     return out
 
 
+# ---- C11 (function pointers) ----
+
+def t_foreach():
+    arrays = [[1, 2, 3], [42], [], [-1, 0, 1, 2147483647, -2147483648],
+              [5, 5, 5, 5], [9, -9, 8, -8, 7]]
+    out = []
+    for arr in arrays:
+        n = len(arr)
+        init = "{%s}" % ", ".join(map(str, arr)) if arr else "{0}"
+        out.append(
+            "#include <stdio.h>\n"
+            "void ft_foreach(int *tab, int length, void (*f)(int));\n"
+            "static void pr(int n){printf(\"%%d \", n);}\n"
+            "int main(void){int tab[] = %s; ft_foreach(tab, %d, pr);"
+            "printf(\"$\");return 0;}\n" % (init, n))
+    return out
+
+
+def t_map():
+    fns = {
+        "dbl": "static int dbl(int n){return n * 2;}",
+        "neg": "static int neg(int n){return -n;}",
+        "inc": "static int inc(int n){return n + 1;}",
+    }
+    cases = [([1, 2, 3], "dbl"), ([], "dbl"), ([42], "neg"),
+             ([-5, 0, 5], "neg"), ([0, 99, -99, 7], "inc"),
+             ([2147483646, -2147483647], "inc")]
+    out = []
+    for arr, fk in cases:
+        n = len(arr)
+        init = "{%s}" % ", ".join(map(str, arr)) if arr else "{0}"
+        out.append(
+            "#include <stdio.h>\n#include <stdlib.h>\n"
+            "int *ft_map(int *tab, int length, int (*f)(int));\n"
+            "%s\n"
+            "int main(void){int tab[] = %s; int *r = ft_map(tab, %d, %s);"
+            "if (!r && %d > 0){printf(\"NULL\");return 0;}"
+            "for (int i = 0; i < %d; i++) printf(\"%%d \", r[i]);"
+            "printf(\"$\");return 0;}\n" % (fns[fk], init, n, fk, n, n))
+    return out
+
+
+PRED_FNS = (
+    "int has_a(char *s);\nint longer3(char *s);\nint is_empty(char *s);\n"
+    "int has_a(char *s){while (*s){if (*s == 'a') return 1; s++;}return 0;}\n"
+    "int longer3(char *s){int i = 0; while (s[i]) i++; return i > 3;}\n"
+    "int is_empty(char *s){return s[0] == '\\0';}\n")
+
+
+def t_any():
+    cases = [
+        (["rick", "morty"], "has_a"),
+        (["xyz", "uvw"], "has_a"),
+        ([], "has_a"),
+        (["ab", "cd", "efgh"], "longer3"),
+        (["ab", "cd"], "longer3"),
+        (["x", "", "y"], "is_empty"),
+        (["x", "y"], "is_empty"),
+    ]
+    out = []
+    for arr, fk in cases:
+        elems = "".join("%s, " % cstr(s) for s in arr) + "0"
+        out.append(
+            "#include <stdio.h>\n"
+            "int ft_any(char **tab, int (*f)(char *));\n" + PRED_FNS +
+            "int main(void){char *tab[] = {%s};"
+            "printf(\"%%d\", ft_any(tab, %s));return 0;}\n" % (elems, fk))
+    return out
+
+
+def t_count_if():
+    cases = [
+        (["rick", "morty", "summer"], "has_a"),
+        (["xyz", "uvw"], "has_a"),
+        ([], "has_a"),
+        (["ab", "cdef", "ghijk", "l"], "longer3"),
+        (["", "", "x"], "is_empty"),
+        (["aaa", "bab", "abb", "bbb"], "has_a"),
+    ]
+    out = []
+    for arr, fk in cases:
+        elems = "".join("%s, " % cstr(s) for s in arr) + "0"
+        out.append(
+            "#include <stdio.h>\n"
+            "int ft_count_if(char **tab, int length, int (*f)(char *));\n" + PRED_FNS +
+            "int main(void){char *tab[] = {%s};"
+            "printf(\"%%d\", ft_count_if(tab, %d, %s));return 0;}\n"
+            % (elems, len(arr), fk))
+    return out
+
+
+def t_is_sort():
+    # ascending cmp only; strictly-descending arrays are ambiguous between
+    # common interpretations of the subject, so they are not tested.
+    arrays = [
+        ([1, 2, 3, 4], None), ([1, 3, 2], None), ([], None), ([42], None),
+        ([1, 1, 2, 2, 3], None), ([5, 4, 6], None), ([0, 0, 0], None),
+        ([-3, -1, 0, 7], None), ([2, 1], None), ([1, 2, 3, 2], None),
+    ]
+    out = []
+    for arr, _ in arrays:
+        n = len(arr)
+        init = "{%s}" % ", ".join(map(str, arr)) if arr else "{0}"
+        out.append(
+            "#include <stdio.h>\n"
+            "int ft_is_sort(int *tab, int length, int (*f)(int, int));\n"
+            "static int cmp_asc(int a, int b){return a - b;}\n"
+            "int main(void){int tab[] = %s;"
+            "printf(\"%%d\", ft_is_sort(tab, %d, cmp_asc));return 0;}\n" % (init, n))
+    return out
+
+
+def _tab_lit(strs):
+    return "".join("%s, " % cstr(s) for s in strs) + "0"
+
+
+def t_sort_string_tab():
+    arrays = [
+        ["banana", "apple", "cherry"],
+        ["b", "a"],
+        ["single"],
+        ["zz", "z", "zzz", "a"],
+        ["Rick", "Morty", "Summer", "Beth", "Jerry"],
+        ["same", "same", "other"],
+        ["42", "21", "1337", ""],
+    ]
+    out = []
+    for arr in arrays:
+        out.append(
+            "#include <stdio.h>\n"
+            "void ft_sort_string_tab(char **tab);\n"
+            "int main(void){char *tab[] = {%s};"
+            "ft_sort_string_tab(tab);"
+            "for (int i = 0; tab[i]; i++) printf(\"[%%s]\", tab[i]);"
+            "return 0;}\n" % _tab_lit(arr))
+    return out
+
+
+def t_advanced_sort_string_tab():
+    cmps = {
+        "cmp_std": ("static int cmp_std(char *a, char *b){int i = 0;"
+                    "while (a[i] && a[i] == b[i]) i++;"
+                    "return (unsigned char)a[i] - (unsigned char)b[i];}"),
+        "cmp_rev": ("static int cmp_rev(char *a, char *b){int i = 0;"
+                    "while (a[i] && a[i] == b[i]) i++;"
+                    "return (unsigned char)b[i] - (unsigned char)a[i];}"),
+        "cmp_len": ("static int slen2(char *s){int i = 0; while (s[i]) i++; return i;}\n"
+                    "static int cmp_len(char *a, char *b){return slen2(a) - slen2(b);}"),
+    }
+    cases = [
+        (["banana", "apple", "cherry"], "cmp_std"),
+        (["banana", "apple", "cherry"], "cmp_rev"),
+        (["aaaa", "a", "aa", "aaa"], "cmp_len"),
+        (["single"], "cmp_std"),
+        (["x", "x", "y"], "cmp_std"),
+        (["Rick", "Morty", "Summer", "Beth"], "cmp_rev"),
+    ]
+    out = []
+    for arr, ck in cases:
+        out.append(
+            "#include <stdio.h>\n"
+            "void ft_advanced_sort_string_tab(char **tab, int (*cmp)(char *, char *));\n"
+            "%s\n"
+            "int main(void){char *tab[] = {%s};"
+            "ft_advanced_sort_string_tab(tab, %s);"
+            "for (int i = 0; tab[i]; i++) printf(\"[%%s]\", tab[i]);"
+            "return 0;}\n" % (cmps[ck], _tab_lit(arr), ck))
+    return out
+
+
+# ---- C12 (linked lists) ----
+# Tests include the student's own ft_list.h (found via -I). Field names
+# next/data are imposed by the subject. Where ft_create_elem is an authorized
+# helper of the tested function, the test defines it.
+
+L_PRE = ('#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n'
+         '#include "ft_list.h"\n')
+L_MK = ("t_list *mk(void *data, t_list *next);\n"
+        "t_list *mk(void *data, t_list *next)"
+        "{t_list *n = malloc(sizeof(t_list)); n->data = data; n->next = next;"
+        " return n;}\n")
+L_PLIST = ("static void plist(t_list *l)"
+           "{while (l){printf(\"[%s]\", (char *)l->data); l = l->next;}"
+           " printf(\"$\");}\n")
+L_CREATE = ("t_list *ft_create_elem(void *data)"
+            "{t_list *e = malloc(sizeof(t_list)); if (!e) return NULL;"
+            " e->data = data; e->next = NULL; return e;}\n")
+L_CMPS = "static int cmps(void *a, void *b){return strcmp(a, b);}\n"
+
+
+def clist(strs):
+    expr = "NULL"
+    for s in reversed(strs):
+        expr = "mk(%s, %s)" % (cstr(s), expr)
+    return expr
+
+
+def t_create_elem():
+    strs = ["hello", "", "42"]
+    out = []
+    for s in strs:
+        out.append(
+            L_PRE +
+            "int main(void){t_list *e = ft_create_elem((void *)%s);"
+            "if (!e){printf(\"NULL\");return 0;}"
+            "printf(\"[%%s]next=%%d\", (char *)e->data, e->next == NULL);"
+            "return 0;}\n" % cstr(s))
+    out.append(
+        L_PRE +
+        "int main(void){t_list *e = ft_create_elem(NULL);"
+        "if (!e){printf(\"NULL\");return 0;}"
+        "printf(\"data=%d next=%d\", e->data == NULL, e->next == NULL);"
+        "return 0;}\n")
+    return out
+
+
+def t_list_push_front():
+    cases = [["a"], ["a", "b", "c"], ["x", "y", "z", "w", "v"]]
+    out = []
+    for strs in cases:
+        pushes = "".join(
+            "ft_list_push_front(&l, (void *)%s);" % cstr(s) for s in strs)
+        out.append(
+            L_PRE + L_PLIST + L_CREATE +
+            "void ft_list_push_front(t_list **begin_list, void *data);\n"
+            "int main(void){t_list *l = NULL;%s plist(l);return 0;}\n" % pushes)
+    return out
+
+
+def t_list_size():
+    cases = [[], ["a"], ["a", "b", "c"], ["1", "2", "3", "4", "5", "6", "7"]]
+    out = []
+    for strs in cases:
+        out.append(
+            L_PRE + L_MK +
+            "int ft_list_size(t_list *begin_list);\n"
+            "int main(void){t_list *l = %s;"
+            "printf(\"%%d\", ft_list_size(l));return 0;}\n" % clist(strs))
+    return out
+
+
+def t_list_last():
+    cases = [[], ["only"], ["a", "b", "c"], ["x", "y"]]
+    out = []
+    for strs in cases:
+        out.append(
+            L_PRE + L_MK +
+            "t_list *ft_list_last(t_list *begin_list);\n"
+            "int main(void){t_list *l = %s;"
+            "t_list *r = ft_list_last(l);"
+            "if (!r) printf(\"NULL\");"
+            "else printf(\"[%%s]\", (char *)r->data);return 0;}\n" % clist(strs))
+    return out
+
+
+def t_list_push_back():
+    cases = [["a"], ["a", "b", "c"], ["1", "2", "3", "4"]]
+    out = []
+    for strs in cases:
+        pushes = "".join(
+            "ft_list_push_back(&l, (void *)%s);" % cstr(s) for s in strs)
+        out.append(
+            L_PRE + L_PLIST + L_CREATE +
+            "void ft_list_push_back(t_list **begin_list, void *data);\n"
+            "int main(void){t_list *l = NULL;%s plist(l);return 0;}\n" % pushes)
+    return out
+
+
+def t_list_push_strs():
+    cases = [["a", "b", "c"], ["one"], ["x", "y", "z", "w"]]
+    out = []
+    for strs in cases:
+        elems = ", ".join(cstr(s) for s in strs)
+        out.append(
+            L_PRE + L_PLIST + L_CREATE +
+            "t_list *ft_list_push_strs(int size, char **strs);\n"
+            "int main(void){char *strs[] = {%s};"
+            "t_list *l = ft_list_push_strs(%d, strs);"
+            "plist(l);return 0;}\n" % (elems, len(strs)))
+    out.append(
+        L_PRE + L_PLIST + L_CREATE +
+        "t_list *ft_list_push_strs(int size, char **strs);\n"
+        "int main(void){t_list *l = ft_list_push_strs(0, NULL);"
+        "plist(l);return 0;}\n")
+    return out
+
+
+def t_list_clear():
+    cases = [["a", "b", "c"], ["only"], []]
+    out = []
+    for strs in cases:
+        build = "t_list *l = NULL;" + "".join(
+            "l = mk(strdup(%s), l);" % cstr(s) for s in reversed(strs))
+        out.append(
+            L_PRE + L_MK +
+            "void ft_list_clear(t_list *begin_list, void (*free_fct)(void *));\n"
+            "static void fr(void *d){printf(\"F[%s]\", (char *)d); free(d);}\n"
+            "int main(void){" + build +
+            "ft_list_clear(l, fr);printf(\"$\");return 0;}\n")
+    return out
+
+
+def t_list_at():
+    lst = ["a", "b", "c", "d"]
+    out = []
+    for nbr in [0, 1, 3, 4, 42]:
+        out.append(
+            L_PRE + L_MK +
+            "t_list *ft_list_at(t_list *begin_list, unsigned int nbr);\n"
+            "int main(void){t_list *l = %s;"
+            "t_list *r = ft_list_at(l, %d);"
+            "if (!r) printf(\"NULL\");"
+            "else printf(\"[%%s]\", (char *)r->data);return 0;}\n"
+            % (clist(lst), nbr))
+    out.append(
+        L_PRE + L_MK +
+        "t_list *ft_list_at(t_list *begin_list, unsigned int nbr);\n"
+        "int main(void){t_list *r = ft_list_at(NULL, 0);"
+        "if (!r) printf(\"NULL\");return 0;}\n")
+    return out
+
+
+def t_list_reverse():
+    cases = [["a", "b", "c", "d"], ["x"], [], ["1", "2"]]
+    out = []
+    for strs in cases:
+        out.append(
+            L_PRE + L_MK + L_PLIST +
+            "void ft_list_reverse(t_list **begin_list);\n"
+            "int main(void){t_list *l = %s;"
+            "ft_list_reverse(&l);plist(l);return 0;}\n" % clist(strs))
+    return out
+
+
+def t_list_foreach():
+    cases = [["a", "b", "c"], [], ["solo"]]
+    out = []
+    for strs in cases:
+        out.append(
+            L_PRE + L_MK +
+            "void ft_list_foreach(t_list *begin_list, void (*f)(void *));\n"
+            "static void pr(void *d){printf(\"[%%s]\", (char *)d);}\n"
+            "int main(void){t_list *l = %s;"
+            "ft_list_foreach(l, pr);printf(\"$\");return 0;}\n" % clist(strs))
+    return out
+
+
+def t_list_foreach_if():
+    cases = [
+        (["a", "b", "a", "c", "a"], "a"),
+        (["x", "y"], "z"),
+        (["m", "m"], "m"),
+    ]
+    out = []
+    for strs, ref_s in cases:
+        out.append(
+            L_PRE + L_MK + L_CMPS +
+            "void ft_list_foreach_if(t_list *begin_list, void (*f)(void *),"
+            " void *data_ref, int (*cmp)(void *, void *));\n"
+            "static void pr(void *d){printf(\"[%%s]\", (char *)d);}\n"
+            "int main(void){t_list *l = %s;"
+            "ft_list_foreach_if(l, pr, (void *)%s, cmps);"
+            "printf(\"$\");return 0;}\n" % (clist(strs), cstr(ref_s)))
+    return out
+
+
+def t_list_find():
+    cases = [
+        (["a", "b", "c"], "b"),
+        (["a", "b", "c"], "z"),
+        (["dup", "dup"], "dup"),
+        ([], "x"),
+    ]
+    out = []
+    for strs, ref_s in cases:
+        out.append(
+            L_PRE + L_MK + L_CMPS +
+            "t_list *ft_list_find(t_list *begin_list, void *data_ref,"
+            " int (*cmp)(void *, void *));\n"
+            "int main(void){t_list *l = %s;"
+            "t_list *r = ft_list_find(l, (void *)%s, cmps);"
+            "if (!r) printf(\"NULL\");"
+            "else printf(\"[%%s]next=%%d\", (char *)r->data, r->next == NULL);"
+            "return 0;}\n" % (clist(strs), cstr(ref_s)))
+    return out
+
+
+def t_list_remove_if():
+    cases = [
+        (["a", "b", "a", "c"], "a"),
+        (["x", "x", "x"], "x"),
+        (["k", "l", "m"], "z"),
+        (["del", "keep"], "del"),
+        (["keep", "del"], "del"),
+    ]
+    out = []
+    for strs, ref_s in cases:
+        build = "t_list *l = NULL;" + "".join(
+            "l = mk(strdup(%s), l);" % cstr(s) for s in reversed(strs))
+        out.append(
+            L_PRE + L_MK + L_PLIST + L_CMPS +
+            "void ft_list_remove_if(t_list **begin_list, void *data_ref,"
+            " int (*cmp)(void *, void *), void (*free_fct)(void *));\n"
+            "int main(void){" + build +
+            "ft_list_remove_if(&l, (void *)%s, cmps, free);"
+            "plist(l);return 0;}\n" % cstr(ref_s))
+    return out
+
+
+def t_list_merge():
+    cases = [
+        (["a", "b"], ["c", "d"]),
+        ([], ["x", "y"]),
+        (["x", "y"], []),
+        (["solo"], ["other"]),
+    ]
+    out = []
+    for l1, l2 in cases:
+        out.append(
+            L_PRE + L_MK + L_PLIST +
+            "void ft_list_merge(t_list **begin_list1, t_list *begin_list2);\n"
+            "int main(void){t_list *l1 = %s; t_list *l2 = %s;"
+            "ft_list_merge(&l1, l2);plist(l1);return 0;}\n"
+            % (clist(l1), clist(l2)))
+    return out
+
+
+def t_list_sort():
+    cases = [
+        ["banana", "apple", "cherry"],
+        ["d", "c", "b", "a"],
+        ["same", "same", "aaa"],
+        ["solo"],
+        [],
+        ["10", "1", "2", "20", "3"],
+    ]
+    out = []
+    for strs in cases:
+        out.append(
+            L_PRE + L_MK + L_PLIST + L_CMPS +
+            "void ft_list_sort(t_list **begin_list, int (*cmp)(void *, void *));\n"
+            "int main(void){t_list *l = %s;"
+            "ft_list_sort(&l, cmps);plist(l);return 0;}\n" % clist(strs))
+    return out
+
+
+def t_list_reverse_fun():
+    cases = [["a", "b", "c", "d"], ["x"], [], ["1", "2", "3"]]
+    out = []
+    for strs in cases:
+        out.append(
+            L_PRE + L_MK + L_PLIST +
+            "void ft_list_reverse_fun(t_list *begin_list);\n"
+            "int main(void){t_list *l = %s;"
+            "ft_list_reverse_fun(l);plist(l);return 0;}\n" % clist(strs))
+    return out
+
+
+def t_sorted_list_insert():
+    cases = [
+        ([], "m"),
+        (["b", "d"], "a"),
+        (["b", "d"], "c"),
+        (["b", "d"], "z"),
+        (["b", "b"], "b"),
+    ]
+    out = []
+    for strs, ins in cases:
+        out.append(
+            L_PRE + L_MK + L_PLIST + L_CMPS + L_CREATE +
+            "void ft_sorted_list_insert(t_list **begin_list, void *data,"
+            " int (*cmp)(void *, void *));\n"
+            "int main(void){t_list *l = %s;"
+            "ft_sorted_list_insert(&l, (void *)%s, cmps);"
+            "plist(l);return 0;}\n" % (clist(strs), cstr(ins)))
+    return out
+
+
+def t_sorted_list_merge():
+    cases = [
+        (["a", "c", "e"], ["b", "d", "f"]),
+        ([], ["a", "b"]),
+        (["a", "b"], []),
+        (["b"], ["a", "c"]),
+        (["a", "a"], ["a"]),
+    ]
+    out = []
+    for l1, l2 in cases:
+        out.append(
+            L_PRE + L_MK + L_PLIST + L_CMPS +
+            "void ft_sorted_list_merge(t_list **begin_list1, t_list *begin_list2,"
+            " int (*cmp)(void *, void *));\n"
+            "int main(void){t_list *l1 = %s; t_list *l2 = %s;"
+            "ft_sorted_list_merge(&l1, l2, cmps);plist(l1);return 0;}\n"
+            % (clist(l1), clist(l2)))
+    return out
+
+
+# ---- C13 (binary trees) ----
+
+B_PRE = ('#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n'
+         '#include "ft_btree.h"\n')
+B_ND = ("static t_btree *nd(void *item, t_btree *left, t_btree *right)"
+        "{t_btree *n = malloc(sizeof(t_btree)); n->item = item;"
+        " n->left = left; n->right = right; return n;}\n")
+B_PV = "static void pv(void *item){printf(\"[%s]\", (char *)item);}\n"
+B_CREATE = ("t_btree *btree_create_node(void *item)"
+            "{t_btree *n = malloc(sizeof(t_btree)); if (!n) return NULL;"
+            " n->item = item; n->left = NULL; n->right = NULL; return n;}\n")
+B_CMPS = "static int cmps(void *a, void *b){return strcmp(a, b);}\n"
+
+# trees as nested tuples: (item, left, right)
+TREE_BALANCED = ("d", ("b", ("a", None, None), ("c", None, None)),
+                 ("f", ("e", None, None), ("g", None, None)))
+TREE_LEFT = ("c", ("b", ("a", None, None), None), None)
+TREE_RIGHT = ("a", None, ("b", None, ("c", None, None)))
+TREE_ONE = ("solo", None, None)
+TREES = [TREE_BALANCED, TREE_LEFT, TREE_RIGHT, TREE_ONE]
+
+
+def ctree(t):
+    if t is None:
+        return "NULL"
+    return "nd(%s, %s, %s)" % (cstr(t[0]), ctree(t[1]), ctree(t[2]))
+
+
+def t_btree_create_node():
+    out = []
+    for s in ["root", "", "42"]:
+        out.append(
+            B_PRE +
+            "int main(void){t_btree *n = btree_create_node((void *)%s);"
+            "if (!n){printf(\"NULL\");return 0;}"
+            "printf(\"[%%s]l=%%d r=%%d\", (char *)n->item,"
+            " n->left == NULL, n->right == NULL);return 0;}\n" % cstr(s))
+    return out
+
+
+def t_btree_apply(name):
+    out = []
+    for t in TREES:
+        out.append(
+            B_PRE + B_ND + B_PV +
+            "void %s(t_btree *root, void (*applyf)(void *));\n"
+            "int main(void){t_btree *r = %s;"
+            "%s(r, pv);printf(\"$\");return 0;}\n" % (name, ctree(t), name))
+    return out
+
+
+def t_btree_insert_data():
+    cases = [
+        ["d", "b", "f", "a", "c", "e", "g"],
+        ["a", "b", "c"],
+        ["c", "b", "a"],
+        ["b", "b", "a"],
+        ["solo"],
+    ]
+    out = []
+    for seq in cases:
+        inserts = "".join(
+            "btree_insert_data(&r, (void *)%s, cmps);" % cstr(s) for s in seq)
+        out.append(
+            B_PRE + B_CMPS + B_CREATE +
+            "void btree_insert_data(t_btree **root, void *item,"
+            " int (*cmpf)(void *, void *));\n"
+            "static void show(t_btree *r){if (!r) return; show(r->left);"
+            "printf(\"[%%s]\", (char *)r->item); show(r->right);}\n"
+            "int main(void){t_btree *r = NULL;%s show(r);"
+            "printf(\"$\");return 0;}\n" % inserts)
+    return out
+
+
+def t_btree_search_item():
+    cases = [
+        (TREE_BALANCED, "e"),
+        (TREE_BALANCED, "zz"),
+        (TREE_LEFT, "a"),
+        (TREE_ONE, "solo"),
+        (TREE_ONE, "nope"),
+    ]
+    out = []
+    for t, ref_s in cases:
+        out.append(
+            B_PRE + B_ND + B_CMPS +
+            "void *btree_search_item(t_btree *root, void *data_ref,"
+            " int (*cmpf)(void *, void *));\n"
+            "int main(void){t_btree *r = %s;"
+            "void *f = btree_search_item(r, (void *)%s, cmps);"
+            "if (!f) printf(\"NULL\");"
+            "else printf(\"[%%s]\", (char *)f);return 0;}\n"
+            % (ctree(t), cstr(ref_s)))
+    return out
+
+
+def t_btree_level_count():
+    out = []
+    for t in TREES:
+        out.append(
+            B_PRE + B_ND +
+            "int btree_level_count(t_btree *root);\n"
+            "int main(void){t_btree *r = %s;"
+            "printf(\"%%d\", btree_level_count(r));return 0;}\n" % ctree(t))
+    return out
+
+
+def t_btree_apply_by_level():
+    out = []
+    for t in TREES:
+        out.append(
+            B_PRE + B_ND +
+            "void btree_apply_by_level(t_btree *root,"
+            " void (*applyf)(void *item, int current_level, int is_first_elem));\n"
+            "static void pl(void *item, int level, int first)"
+            "{printf(\"(%%s,%%d,%%d)\", (char *)item, level, first);}\n"
+            "int main(void){t_btree *r = %s;"
+            "btree_apply_by_level(r, pl);printf(\"$\");return 0;}\n" % ctree(t))
+    return out
+
+
 # ---------------------------------------------------------------------------
 # exercise table
 # ---------------------------------------------------------------------------
@@ -579,7 +1198,85 @@ EXERCISES = [
     ("C08", "ex05", ["ft_show_tab.c"], [ref("C08", "ex05", "ft_show_tab.c")], t_show_tab),
 
     ("C09", "ex02", ["ft_split.c"], [ref("C09", "ex02", "ft_split.c")], t_split),
+
+    # C10 (ex00-ex03) and C11/ex05 are program+Makefile exercises graded by a
+    # hand-written check.sh in tests/, not generated here.
+
+    ("C11", "ex00", ["ft_foreach.c"], [ref("C11", "ex00", "ft_foreach.c")], t_foreach),
+    ("C11", "ex01", ["ft_map.c"], [ref("C11", "ex01", "ft_map.c")], t_map),
+    ("C11", "ex02", ["ft_any.c"], [ref("C11", "ex02", "ft_any.c")], t_any),
+    ("C11", "ex03", ["ft_count_if.c"], [ref("C11", "ex03", "ft_count_if.c")], t_count_if),
+    ("C11", "ex04", ["ft_is_sort.c"], [ref("C11", "ex04", "ft_is_sort.c")], t_is_sort),
+    ("C11", "ex06", ["ft_sort_string_tab.c"],
+     [ref("C11", "ex06", "ft_sort_string_tab.c")], t_sort_string_tab),
+    ("C11", "ex07", ["ft_advanced_sort_string_tab.c"],
+     [ref("C11", "ex07", "ft_advanced_sort_string_tab.c")], t_advanced_sort_string_tab),
+
+    ("C12", "ex00", ["ft_create_elem.c", "ft_list.h"],
+     [ref("C12", "ex00", "ft_create_elem.c"), ref("C12", "ex00", "ft_list.h")], t_create_elem),
+    ("C12", "ex01", ["ft_list_push_front.c", "ft_list.h"],
+     [ref("C12", "ex01", "ft_list_push_front.c"), ref("C12", "ex01", "ft_list.h")], t_list_push_front),
+    ("C12", "ex02", ["ft_list_size.c", "ft_list.h"],
+     [ref("C12", "ex02", "ft_list_size.c"), ref("C12", "ex02", "ft_list.h")], t_list_size),
+    ("C12", "ex03", ["ft_list_last.c", "ft_list.h"],
+     [ref("C12", "ex03", "ft_list_last.c"), ref("C12", "ex03", "ft_list.h")], t_list_last),
+    ("C12", "ex04", ["ft_list_push_back.c", "ft_list.h"],
+     [ref("C12", "ex04", "ft_list_push_back.c"), ref("C12", "ex04", "ft_list.h")], t_list_push_back),
+    ("C12", "ex05", ["ft_list_push_strs.c", "ft_list.h"],
+     [ref("C12", "ex05", "ft_list_push_strs.c"), ref("C12", "ex05", "ft_list.h")], t_list_push_strs),
+    ("C12", "ex06", ["ft_list_clear.c", "ft_list.h"],
+     [ref("C12", "ex06", "ft_list_clear.c"), ref("C12", "ex06", "ft_list.h")], t_list_clear),
+    ("C12", "ex07", ["ft_list_at.c", "ft_list.h"],
+     [ref("C12", "ex07", "ft_list_at.c"), ref("C12", "ex07", "ft_list.h")], t_list_at),
+    # ex08: the subject says "we will use our own ft_list.h" -> the student
+    # only submits the .c; the header is provided in the test dir (AUX_FILES).
+    ("C12", "ex08", ["ft_list_reverse.c"],
+     [ref("C12", "ex08", "ft_list_reverse.c"), ref("C12", "ex08", "ft_list.h")], t_list_reverse),
+    ("C12", "ex09", ["ft_list_foreach.c", "ft_list.h"],
+     [ref("C12", "ex09", "ft_list_foreach.c"), ref("C12", "ex09", "ft_list.h")], t_list_foreach),
+    ("C12", "ex10", ["ft_list_foreach_if.c", "ft_list.h"],
+     [ref("C12", "ex10", "ft_list_foreach_if.c"), ref("C12", "ex10", "ft_list.h")], t_list_foreach_if),
+    ("C12", "ex11", ["ft_list_find.c", "ft_list.h"],
+     [ref("C12", "ex11", "ft_list_find.c"), ref("C12", "ex11", "ft_list.h")], t_list_find),
+    ("C12", "ex12", ["ft_list_remove_if.c", "ft_list.h"],
+     [ref("C12", "ex12", "ft_list_remove_if.c"), ref("C12", "ex12", "ft_list.h")], t_list_remove_if),
+    ("C12", "ex13", ["ft_list_merge.c", "ft_list.h"],
+     [ref("C12", "ex13", "ft_list_merge.c"), ref("C12", "ex13", "ft_list.h")], t_list_merge),
+    ("C12", "ex14", ["ft_list_sort.c", "ft_list.h"],
+     [ref("C12", "ex14", "ft_list_sort.c"), ref("C12", "ex14", "ft_list.h")], t_list_sort),
+    ("C12", "ex15", ["ft_list_reverse_fun.c", "ft_list.h"],
+     [ref("C12", "ex15", "ft_list_reverse_fun.c"), ref("C12", "ex15", "ft_list.h")], t_list_reverse_fun),
+    ("C12", "ex16", ["ft_sorted_list_insert.c", "ft_list.h"],
+     [ref("C12", "ex16", "ft_sorted_list_insert.c"), ref("C12", "ex16", "ft_list.h")], t_sorted_list_insert),
+    ("C12", "ex17", ["ft_sorted_list_merge.c", "ft_list.h"],
+     [ref("C12", "ex17", "ft_sorted_list_merge.c"), ref("C12", "ex17", "ft_list.h")], t_sorted_list_merge),
+
+    ("C13", "ex00", ["btree_create_node.c", "ft_btree.h"],
+     [ref("C13", "ex00", "btree_create_node.c"), ref("C13", "ex00", "ft_btree.h")], t_btree_create_node),
+    ("C13", "ex01", ["btree_apply_prefix.c", "ft_btree.h"],
+     [ref("C13", "ex01", "btree_apply_prefix.c"), ref("C13", "ex01", "ft_btree.h")],
+     lambda: t_btree_apply("btree_apply_prefix")),
+    ("C13", "ex02", ["btree_apply_infix.c", "ft_btree.h"],
+     [ref("C13", "ex02", "btree_apply_infix.c"), ref("C13", "ex02", "ft_btree.h")],
+     lambda: t_btree_apply("btree_apply_infix")),
+    ("C13", "ex03", ["btree_apply_suffix.c", "ft_btree.h"],
+     [ref("C13", "ex03", "btree_apply_suffix.c"), ref("C13", "ex03", "ft_btree.h")],
+     lambda: t_btree_apply("btree_apply_suffix")),
+    ("C13", "ex04", ["btree_insert_data.c", "ft_btree.h"],
+     [ref("C13", "ex04", "btree_insert_data.c"), ref("C13", "ex04", "ft_btree.h")], t_btree_insert_data),
+    ("C13", "ex05", ["btree_search_item.c", "ft_btree.h"],
+     [ref("C13", "ex05", "btree_search_item.c"), ref("C13", "ex05", "ft_btree.h")], t_btree_search_item),
+    ("C13", "ex06", ["btree_level_count.c", "ft_btree.h"],
+     [ref("C13", "ex06", "btree_level_count.c"), ref("C13", "ex06", "ft_btree.h")], t_btree_level_count),
+    ("C13", "ex07", ["btree_apply_by_level.c", "ft_btree.h"],
+     [ref("C13", "ex07", "btree_apply_by_level.c"), ref("C13", "ex07", "ft_btree.h")], t_btree_apply_by_level),
 ]
+
+# extra files copied verbatim into the test dir (headers the moulinette
+# provides itself, e.g. C12/ex08 where the student does not submit ft_list.h)
+AUX_FILES = {
+    ("C12", "ex08"): [ref("C12", "ex08", "ft_list.h")],
+}
 
 
 def main():
@@ -595,6 +1292,8 @@ def main():
         os.makedirs(out_dir, exist_ok=True)
         with open(os.path.join(out_dir, "files.txt"), "w") as f:
             f.write("\n".join(files) + "\n")
+        for aux in AUX_FILES.get((module, ex), []):
+            shutil.copy(aux, out_dir)
 
         tests = builder()
         for i, src in enumerate(tests):
