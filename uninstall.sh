@@ -24,13 +24,18 @@ if [ -e "$BIN_DIR/mini-moulinette" ] || [ -L "$BIN_DIR/mini-moulinette" ]; then
 	removed=1
 fi
 
-# strip the exact two lines the installer appended, nothing else
+# remove only OUR marker + the export line right after it; other tools may
+# have appended an identical export line with their own marker
 marker='# added by mini-moulinette installer'
 export_line="export PATH=\"$BIN_DIR:\$PATH\""
 for rc in "$HOME/.zshrc" "$HOME/.bashrc"; do
 	[ -f "$rc" ] || continue
-	if grep -qxF "$marker" "$rc" || grep -qxF "$export_line" "$rc"; then
-		grep -vxF "$marker" "$rc" | grep -vxF "$export_line" > "$rc.mm_tmp"
+	if grep -qxF "$marker" "$rc"; then
+		awk -v m="$marker" -v e="$export_line" '
+			hold == 1 { hold = 0; if ($0 == e) next; print m }
+			$0 == m { hold = 1; next }
+			{ print }
+		' "$rc" > "$rc.mm_tmp"
 		mv "$rc.mm_tmp" "$rc"
 		info "Cleaned PATH lines from $rc"
 		removed=1
