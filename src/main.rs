@@ -301,6 +301,111 @@ fn run_assignment(assignment: &str, path: &PathBuf, is_strict: bool) -> Result<(
     Ok(())
 }
 
+// ---------------------------------------------------------------------------
+// forbidden functions
+// ---------------------------------------------------------------------------
+
+/// gcc emits calls to these on its own (struct init, array copies...), so a
+/// student can't be failed for them showing up in the symbol table.
+const COMPILER_SYMS: &[&str] = &["memset", "memcpy", "memmove"];
+
+/// Compile each student .c alone and inspect its undefined symbols with nm.
+/// Anything not defined by another student file, not in allowed.txt, not a
+/// compiler-generated helper and not a `_`-prefixed runtime symbol is a
+/// forbidden function. Returns None when the check can't run (compile error,
+/// nm missing) — the normal tests will report those cases themselves.
+fn find_forbidden(sources: &[&PathBuf], allowed: &[String], inc_dirs: &[&PathBuf]) -> Option<Vec<String>> {
+    use std::collections::HashSet;
+
+    let tmp = std::env::temp_dir();
+    let mut undefined: HashSet<String> = HashSet::new();
+    let mut defined: HashSet<String> = HashSet::new();
+
+    for src in sources {
+        let obj = tmp.join(format!(".mm_nm_{}.o", uuid::Uuid::new_v4()));
+        let mut cmd = Command::new("cc");
+        cmd.arg("-c").arg(src);
+        for d in inc_dirs {
+            cmd.arg("-I").arg(d);
+        }
+        cmd.arg("-o").arg(&obj);
+        let ok = cmd.output().map(|o| o.status.success()).unwrap_or(false);
+        if !ok {
+            let _ = fs::remove_file(&obj);
+            return None;
+        }
+        let nm = Command::new("nm").arg(&obj).output();
+        let _ = fs::remove_file(&obj);
+        let nm = nm.ok()?;
+        if !nm.status.success() {
+            return None;
+        }
+        for line in String::from_utf8_lossy(&nm.stdout).lines() {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            let (kind, name) = match parts.as_slice() {
+                [k, n] => (*k, *n),
+                [_, k, n] => (*k, *n),
+                _ => continue,
+            };
+            if kind == "U" {
+                undefined.insert(name.to_string());
+            } else {
+                defined.insert(name.to_string());
+            }
+        }
+    }
+
+    let mut forbidden: Vec<String> = undefined
+        .into_iter()
+        .filter(|s| !defined.contains(s))
+        .filter(|s| !s.starts_with('_'))
+        .filter(|s| !COMPILER_SYMS.contains(&s.as_str()))
+        .filter(|s| !allowed.iter().any(|a| a == s))
+        .collect();
+    forbidden.sort();
+    Some(forbidden)
+}
+
+/// Read allowed.txt (one authorized function per line). None = no file, so
+/// the check is skipped. An existing empty file means nothing is allowed.
+fn read_allowed(test_ex_dir: &PathBuf) -> Option<Vec<String>> {
+    let p = test_ex_dir.join("allowed.txt");
+    let content = fs::read_to_string(p).ok()?;
+    Some(content
+        .lines()
+        .flat_map(|l| l.split_whitespace())
+        .map(|s| s.to_string())
+        .collect())
+}
+
+/// Forbidden-function gate shared by both grading modes. Returns true when
+/// the exercise must be failed (and prints + traces the reason).
+fn forbidden_gate(ex_name: &str, sources: &[&PathBuf], test_ex_dir: &PathBuf,
+                  student_ex_dir: &PathBuf, trace: &mut String) -> bool {
+    let Some(allowed) = read_allowed(test_ex_dir) else { return false };
+    if sources.is_empty() {
+        return false;
+    }
+    let inc_dirs = [student_ex_dir, test_ex_dir];
+    match find_forbidden(sources, &allowed, &inc_dirs) {
+        Some(forb) if !forb.is_empty() => {
+            println!("   ╰── {} forbidden function(s): {}\n",
+                "✗".red().bold(), forb.join(", ").red().bold());
+            let allowed_str = if allowed.is_empty() {
+                "(none)".to_string()
+            } else {
+                allowed.join(", ")
+            };
+            trace_block(trace, &format!("{}: forbidden functions", ex_name),
+                "cheating check failed",
+                &format!("called but not authorized: {}\nauthorized functions: {}",
+                    forb.join(", "), allowed_str));
+            true
+        }
+        _ => false,
+    }
+}
+
 /// Append one failure block to the trace buffer (full, untruncated).
 fn trace_block(trace: &mut String, location: &str, kind: &str, body: &str) {
     trace.push_str(&"=".repeat(79));
@@ -333,8 +438,6 @@ const BUILD_TIMEOUT_SECS: u64 = 30;
 fn run_build_check(ex_name: &str, check_script: &PathBuf, student_ex_dir: &PathBuf, trace: &mut String) -> Result<bool> {
     use std::process::Stdio;
     use std::time::{Duration, Instant};
-
-    println!(" ▶ {} {}", ex_name.bold(), "(build check)".cyan());
 
     if !student_ex_dir.exists() {
         println!("   ╰── {} directory missing\n", "✗".red());
@@ -407,6 +510,20 @@ fn run_exercise_parallel(ex_name: &str, test_ex_dir: &PathBuf, student_ex_dir: &
     // compiling test_*.c against a single source. A check.sh does the build/link/run.
     let check_script = test_ex_dir.join("check.sh");
     if check_script.exists() {
+        println!(" ▶ {} {}", ex_name.bold(), "(build check)".cyan());
+        // forbidden-function gate on every .c of the rendu (file list is free
+        // in these program exercises, so no extra-file warning here)
+        if student_ex_dir.exists() && test_ex_dir.join("allowed.txt").exists() {
+            let all_c: Vec<PathBuf> = fs::read_dir(student_ex_dir)?
+                .filter_map(Result::ok)
+                .map(|e| e.path())
+                .filter(|p| p.extension().map_or(false, |e| e == "c"))
+                .collect();
+            let refs: Vec<&PathBuf> = all_c.iter().collect();
+            if forbidden_gate(ex_name, &refs, test_ex_dir, student_ex_dir, trace) {
+                return Ok(false);
+            }
+        }
         return run_build_check(ex_name, &check_script, student_ex_dir, trace);
     }
 
@@ -433,6 +550,33 @@ fn run_exercise_parallel(ex_name: &str, test_ex_dir: &PathBuf, student_ex_dir: &
         if !sf.exists() {
             println!("   ╰── {} file not found: {}", "✗".red(), req);
             println!();
+            return Ok(false);
+        }
+    }
+
+    // the subject forbids leaving any extra file in the turn-in directory;
+    // warn (the real moulinette grades 0 for this)
+    let mut extras: Vec<String> = fs::read_dir(student_ex_dir)?
+        .filter_map(Result::ok)
+        .map(|e| e.file_name().to_string_lossy().to_string())
+        .filter(|n| !n.starts_with('.') && !required_files.contains(n))
+        // files the moulinette itself provides (e.g. ft_stock_str.h,
+        // C12/ex08's ft_list.h) may legitimately mirror the test dir
+        .filter(|n| !test_ex_dir.join(n).exists())
+        .collect();
+    extras.sort();
+    if !extras.is_empty() {
+        println!("   {} extra file(s) in the turn-in dir (real moulinette grades 0): {}",
+            "⚠".yellow().bold(), extras.join(", ").yellow());
+    }
+
+    // forbidden-function gate (allowed.txt in the test dir drives it)
+    {
+        let srcs: Vec<&PathBuf> = student_files
+            .iter()
+            .filter(|p| p.extension().map_or(false, |e| e == "c"))
+            .collect();
+        if forbidden_gate(ex_name, &srcs, test_ex_dir, student_ex_dir, trace) {
             return Ok(false);
         }
     }

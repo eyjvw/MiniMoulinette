@@ -26,6 +26,42 @@ static void	print_error(char *prog, char *file)
 	putstr_fd(2, "\n");
 }
 
+static int	ft_streq(char *a, char *b)
+{
+	int	i;
+
+	i = 0;
+	while (a[i] && a[i] == b[i])
+		i++;
+	return (a[i] == b[i]);
+}
+
+static int	buf_eq(unsigned char *a, unsigned char *b, int n)
+{
+	int	i;
+
+	i = 0;
+	while (i < n)
+	{
+		if (a[i] != b[i])
+			return (0);
+		i++;
+	}
+	return (1);
+}
+
+static void	buf_cpy(unsigned char *dst, unsigned char *src, int n)
+{
+	int	i;
+
+	i = 0;
+	while (i < n)
+	{
+		dst[i] = src[i];
+		i++;
+	}
+}
+
 static void	put_hex(char *dst, unsigned long v, int width)
 {
 	int	i;
@@ -46,7 +82,9 @@ static void	print_line(unsigned long off, unsigned char *b, int n)
 	int		i;
 	int		len;
 
-	memset(line, ' ', sizeof(line));
+	i = 0;
+	while (i < (int)sizeof(line))
+		line[i++] = ' ';
 	put_hex(line, off, 8);
 	if (n == 0)
 	{
@@ -89,7 +127,7 @@ typedef struct s_dump
 static void	flush_line(t_dump *d)
 {
 	if (d->fill == 16 && d->has_prev
-		&& memcmp(d->cur, d->prev, 16) == 0)
+		&& buf_eq(d->cur, d->prev, 16))
 	{
 		if (!d->squeezing)
 			write(1, "*\n", 2);
@@ -100,7 +138,7 @@ static void	flush_line(t_dump *d)
 		print_line(d->off, d->cur, d->fill);
 		d->squeezing = 0;
 	}
-	memcpy(d->prev, d->cur, 16);
+	buf_cpy(d->prev, d->cur, 16);
 	d->has_prev = 1;
 	d->off += d->fill;
 	d->fill = 0;
@@ -135,7 +173,7 @@ int	main(int argc, char **argv)
 	int				ret;
 
 	i = 1;
-	if (i < argc && strcmp(argv[i], "-C") == 0)
+	if (i < argc && ft_streq(argv[i], "-C"))
 		i++;
 	ret = 0;
 	if (i == argc)

@@ -121,6 +121,16 @@ in `sandbox/`, so the expected output reflects a correct implementation.
 
 Per-test execution timeout: 5 s (infinite-loop guard).
 
+### Cheating checks
+
+- **Forbidden functions**: each student `.c` is compiled to an object and its
+  undefined symbols (`nm`) are compared against the subject's authorized
+  functions (`allowed.txt` in the test dir). Any other external call fails
+  the exercise — like the real moulinette's -42. `_`-prefixed runtime symbols
+  and compiler-generated `memset`/`memcpy`/`memmove` are tolerated.
+- **Extra files**: any file in the turn-in directory that is not required by
+  the subject triggers a warning (the real moulinette grades 0 for this).
+
 ### Error trace
 
 Console output only shows the first errors, truncated. When at least one test
@@ -251,6 +261,17 @@ de `sandbox/`, donc la sortie attendue reflète une implémentation correcte.
   C11 ex05 (do-op).
 
 Timeout d'exécution par test : 5 s (anti-boucle infinie).
+
+### Checks anti-triche
+
+- **Fonctions interdites** : chaque `.c` du rendu est compilé en objet et ses
+  symboles indéfinis (`nm`) sont comparés aux fonctions autorisées du sujet
+  (`allowed.txt` dans le dossier de test). Tout autre appel externe fait
+  échouer l'exercice — comme le -42 de la vraie moulinette. Les symboles
+  runtime préfixés `_` et les `memset`/`memcpy`/`memmove` générés par le
+  compilateur sont tolérés.
+- **Fichiers en trop** : tout fichier du rendu non demandé par le sujet
+  déclenche un warning (la vraie moulinette met 0 pour ça).
 
 ### Trace d'erreurs
 

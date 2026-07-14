@@ -1275,7 +1275,70 @@ EXERCISES = [
 # extra files copied verbatim into the test dir (headers the moulinette
 # provides itself, e.g. C12/ex08 where the student does not submit ft_list.h)
 AUX_FILES = {
+    ("C08", "ex04"): [ref("C08", "ex04", "ft_stock_str.h")],
+    ("C08", "ex05"): [ref("C08", "ex05", "ft_stock_str.h")],
     ("C12", "ex08"): [ref("C12", "ex08", "ft_list.h")],
+}
+
+# authorized functions per exercise (from the subjects). Written to
+# allowed.txt in the test dir; the harness fails the exercise when the
+# student's objects reference any other external symbol. Exercises absent
+# from this table get no allowed.txt (check skipped, e.g. C08 headers).
+ALLOWED = {
+    ("C00", "ex00"): ["write"], ("C00", "ex01"): ["write"],
+    ("C00", "ex02"): ["write"], ("C00", "ex03"): ["write"],
+    ("C00", "ex04"): ["write"], ("C00", "ex05"): ["write"],
+    ("C00", "ex06"): ["write"], ("C00", "ex07"): ["write"],
+    ("C00", "ex08"): ["write"],
+    ("C01", "ex00"): [], ("C01", "ex01"): [], ("C01", "ex02"): [],
+    ("C01", "ex03"): [], ("C01", "ex04"): [],
+    ("C01", "ex05"): ["write"],
+    ("C01", "ex06"): [], ("C01", "ex07"): [], ("C01", "ex08"): [],
+    ("C02", "ex00"): [], ("C02", "ex01"): [], ("C02", "ex02"): [],
+    ("C02", "ex03"): [], ("C02", "ex04"): [], ("C02", "ex05"): [],
+    ("C02", "ex06"): [], ("C02", "ex07"): [], ("C02", "ex08"): [],
+    ("C02", "ex09"): [], ("C02", "ex10"): [],
+    ("C02", "ex11"): ["write"],
+    ("C03", "ex00"): [], ("C03", "ex01"): [], ("C03", "ex02"): [],
+    ("C03", "ex03"): [], ("C03", "ex04"): [], ("C03", "ex05"): [],
+    ("C04", "ex00"): [], ("C04", "ex01"): ["write"],
+    ("C04", "ex02"): ["write"], ("C04", "ex03"): [],
+    ("C04", "ex04"): ["write"], ("C04", "ex05"): [],
+    ("C05", "ex00"): [], ("C05", "ex01"): [], ("C05", "ex02"): [],
+    ("C05", "ex03"): [], ("C05", "ex04"): [],
+    ("C05", "ex05"): [], ("C05", "ex06"): [], ("C05", "ex07"): [],
+    ("C05", "ex08"): ["write"],
+    ("C07", "ex00"): ["malloc"], ("C07", "ex01"): ["malloc"],
+    ("C07", "ex02"): ["malloc"], ("C07", "ex03"): ["malloc"],
+    ("C07", "ex04"): ["malloc", "free"], ("C07", "ex05"): ["malloc"],
+    ("C08", "ex04"): ["malloc", "free"], ("C08", "ex05"): ["write"],
+    ("C09", "ex00"): ["write"], ("C09", "ex02"): ["malloc"],
+    ("C10", "ex00"): ["close", "open", "read", "write"],
+    ("C10", "ex01"): ["close", "open", "read", "write", "strerror", "basename"],
+    ("C10", "ex02"): ["close", "open", "read", "write", "malloc", "free",
+                      "strerror", "basename"],
+    ("C10", "ex03"): ["close", "open", "read", "write", "malloc", "free",
+                      "strerror", "basename"],
+    ("C11", "ex05"): ["write"],
+    ("C11", "ex00"): [], ("C11", "ex01"): ["malloc"],
+    ("C11", "ex02"): [], ("C11", "ex03"): [], ("C11", "ex04"): [],
+    ("C11", "ex06"): [], ("C11", "ex07"): [],
+    ("C12", "ex00"): ["malloc"],
+    ("C12", "ex01"): ["ft_create_elem"],
+    ("C12", "ex02"): [], ("C12", "ex03"): [],
+    ("C12", "ex04"): ["ft_create_elem"],
+    ("C12", "ex05"): ["ft_create_elem"],
+    ("C12", "ex06"): ["free"],
+    ("C12", "ex07"): [], ("C12", "ex08"): [], ("C12", "ex09"): [],
+    ("C12", "ex10"): [], ("C12", "ex11"): [],
+    ("C12", "ex12"): ["free"],
+    ("C12", "ex13"): [], ("C12", "ex14"): [], ("C12", "ex15"): [],
+    ("C12", "ex16"): ["ft_create_elem"], ("C12", "ex17"): [],
+    ("C13", "ex00"): ["malloc"],
+    ("C13", "ex01"): [], ("C13", "ex02"): [], ("C13", "ex03"): [],
+    ("C13", "ex04"): ["btree_create_node"],
+    ("C13", "ex05"): [], ("C13", "ex06"): [],
+    ("C13", "ex07"): ["malloc", "free"],
 }
 
 
@@ -1294,6 +1357,9 @@ def main():
             f.write("\n".join(files) + "\n")
         for aux in AUX_FILES.get((module, ex), []):
             shutil.copy(aux, out_dir)
+        if (module, ex) in ALLOWED:
+            with open(os.path.join(out_dir, "allowed.txt"), "w") as f:
+                f.write("\n".join(ALLOWED[(module, ex)]) + "\n")
 
         tests = builder()
         for i, src in enumerate(tests):
@@ -1326,6 +1392,14 @@ def main():
                 with open(os.path.join(out_dir, tname + ".out"), "wb") as f:
                     f.write(run.stdout)
         print("  %s/%s : %d tests (%s)" % (module, ex, len(tests), ", ".join(files)))
+
+    # static test dirs (C01, part of C02-C05, build-check exercises) are not
+    # in EXERCISES but still get their allowed.txt from the same table
+    for (module, ex), fns in ALLOWED.items():
+        d = os.path.join(TESTS, module, ex)
+        if os.path.isdir(d):
+            with open(os.path.join(d, "allowed.txt"), "w") as f:
+                f.write("\n".join(fns) + "\n")
 
     print("\nTOTAL: %d tests, %d failures" % (total, fails))
     return 1 if fails else 0

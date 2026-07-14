@@ -1,0 +1,6 @@
+close
+open
+read
+write
+strerror
+basename

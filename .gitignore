@@ -6,3 +6,4 @@ a.out
 .build_check_*
 prog
 .claude/
+C*.pdf

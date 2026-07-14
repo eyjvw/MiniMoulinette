@@ -27,6 +27,16 @@ static void	print_error(char *prog, char *file)
 	putstr_fd(2, "\n");
 }
 
+static int	ft_streq(char *a, char *b)
+{
+	int	i;
+
+	i = 0;
+	while (a[i] && a[i] == b[i])
+		i++;
+	return (a[i] == b[i]);
+}
+
 static long	ft_atol(char *s)
 {
 	long	n;
@@ -96,7 +106,7 @@ int	main(int argc, char **argv)
 	int		fd;
 	int		ret;
 
-	if (argc < 3 || strcmp(argv[1], "-c") != 0)
+	if (argc < 3 || !ft_streq(argv[1], "-c"))
 		return (1);
 	count = ft_atol(argv[2]);
 	if (argc == 3)

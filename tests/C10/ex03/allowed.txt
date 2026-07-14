@@ -1,0 +1,8 @@
+close
+open
+read
+write
+malloc
+free
+strerror
+basename
