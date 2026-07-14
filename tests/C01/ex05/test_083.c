@@ -1,0 +1,3 @@
+#include <unistd.h>
+void ft_putstr(char *str);
+int main(){ft_putstr("n6uaQ50QjfGTgqo sDglcsYtUfVc1PkwBN3fZlz8ry1YOYhRd7kALYQlxwbR09i5hzcqtSQWKJ9QvGSgPpv"); return 0;}

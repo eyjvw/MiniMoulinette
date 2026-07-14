@@ -1,0 +1,3 @@
+#include <unistd.h>
+void ft_putnbr(int nb);
+int main(){ft_putnbr(-1081944557); return 0;}

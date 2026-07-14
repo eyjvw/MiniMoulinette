@@ -1,0 +1,7 @@
+/target
+a.out
+*.o
+*.a
+.test_bin*
+.build_check_*
+prog

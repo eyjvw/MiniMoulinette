@@ -1,0 +1,3 @@
+#include <stdio.h>
+int ft_strlen(char *str);
+int main(){printf("%d", ft_strlen("rNs5RTnF I egWuCpFDeRVyU1yah5uVEeIp7iZ1kbgsHyeWQjwncQnR0ZOT4ytdaW")); return 0;}
