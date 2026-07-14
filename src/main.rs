@@ -39,6 +39,8 @@ enum Commands {
     #[command(disable_help_flag = true)]
     Update,
     #[command(disable_help_flag = true)]
+    Uninstall,
+    #[command(disable_help_flag = true)]
     Version,
     #[command(disable_help_flag = true)]
     Help,
@@ -66,6 +68,7 @@ fn print_help() {
     println!("{}", "COMMANDES".bold().yellow());
     entry("run <MODULE>", 18, "note un module (ex : C07)");
     entry("update", 18, "met à jour vers la dernière version");
+    entry("uninstall", 18, "désinstalle complètement mini-moulinette");
     entry("version", 18, "affiche la version installée");
     entry("help", 18, "affiche cette aide");
     println!();
@@ -102,6 +105,15 @@ fn main() -> Result<()> {
             run_assignment(assignment, path, *strict)?
         }
         Some(Commands::Update) => run_update(true)?,
+        Some(Commands::Uninstall) => {
+            let cmd = format!(
+                "curl -fsSL --retry 3 https://raw.githubusercontent.com/{}/main/uninstall.sh | sh",
+                REPO);
+            let status = Command::new("sh").arg("-c").arg(&cmd).status()?;
+            if !status.success() {
+                anyhow::bail!("uninstall failed");
+            }
+        }
         Some(Commands::Version) => println!("mini-moulinette {}", env!("CARGO_PKG_VERSION")),
         Some(Commands::Help) => print_help(),
         None => {

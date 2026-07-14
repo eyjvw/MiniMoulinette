@@ -49,11 +49,17 @@ terminal (scripts, CI) it only prints a notice.
 ### Uninstall
 
 ```sh
-rm -rf ~/.mini-moulinette ~/.local/bin/mini-moulinette
+mini-moulinette uninstall
 ```
 
-Then remove the two lines added by the installer (`# added by mini-moulinette
-installer` + the `export PATH=...` below it) from `~/.zshrc` / `~/.bashrc`.
+or without the binary:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/eyjvw/MiniMoulinette/main/uninstall.sh | sh
+```
+
+Removes `~/.mini-moulinette`, the command, and the PATH lines the installer
+added to `~/.zshrc` / `~/.bashrc`. Nothing else.
 
 ### Building from source
 
@@ -190,12 +196,17 @@ Sans terminal (scripts, CI), simple notification, pas de blocage.
 ### Désinstaller
 
 ```sh
-rm -rf ~/.mini-moulinette ~/.local/bin/mini-moulinette
+mini-moulinette uninstall
 ```
 
-Puis retire les deux lignes ajoutées par l'installeur (`# added by
-mini-moulinette installer` + le `export PATH=...` en dessous) de `~/.zshrc` /
-`~/.bashrc`.
+ou sans le binaire :
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/eyjvw/MiniMoulinette/main/uninstall.sh | sh
+```
+
+Supprime `~/.mini-moulinette`, la commande, et les lignes PATH ajoutées par
+l'installeur dans `~/.zshrc` / `~/.bashrc`. Rien d'autre.
 
 ### Build depuis les sources
 
