@@ -51,6 +51,28 @@ fn main() -> Result<()> {
     Ok(())
 }
 
+/// Locate the bundled test suites. Priority: ./tests (working from a clone),
+/// then $MINI_MOULINETTE_DIR/tests, then ~/.mini-moulinette/tests (curl install).
+fn find_tests_root() -> PathBuf {
+    let local = PathBuf::from("tests");
+    if local.is_dir() {
+        return local;
+    }
+    if let Ok(dir) = std::env::var("MINI_MOULINETTE_DIR") {
+        let p = PathBuf::from(dir).join("tests");
+        if p.is_dir() {
+            return p;
+        }
+    }
+    if let Ok(home) = std::env::var("HOME") {
+        let p = PathBuf::from(home).join(".mini-moulinette").join("tests");
+        if p.is_dir() {
+            return p;
+        }
+    }
+    local
+}
+
 fn run_assignment(assignment: &str, path: &PathBuf, is_strict: bool) -> Result<()> {
     println!("\n{}", "╭────────────────────────────────────────────────────────────╮".cyan().bold());
     
@@ -69,7 +91,7 @@ fn run_assignment(assignment: &str, path: &PathBuf, is_strict: bool) -> Result<(
     }
     println!("{}\n", "╰────────────────────────────────────────────────────────────╯".cyan().bold());
 
-    let tests_dir = PathBuf::from("tests").join(assignment);
+    let tests_dir = find_tests_root().join(assignment);
     
     if !tests_dir.exists() {
         println!("{} No tests found for {}", "✗".red(), assignment);
