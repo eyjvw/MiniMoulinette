@@ -32,10 +32,17 @@ mini-moulinette C07
 
 ### Auto-update
 
-The installed binary checks the latest GitHub release at most once a day and
-updates itself (then re-runs your command) when a newer version exists.
+The installed binary checks the latest GitHub release at most once a day.
+When a newer version exists it asks (oh-my-zsh style) before doing anything:
 
-- `mini-moulinette update` — force an update now
+```
+⟳ v0.4.0 available (current v0.3.0). Update now? [Y/n]
+```
+
+`y`/Enter updates then re-runs your command; `n` just continues. Without a
+terminal (scripts, CI) it only prints a notice.
+
+- `mini-moulinette update` — update now, no questions
 - `MINI_MOULINETTE_NO_UPDATE=1` — disable the automatic check
 - Dev builds (run from `target/release/`) are never auto-updated.
 
@@ -156,10 +163,17 @@ mini-moulinette C07
 ### Mise à jour automatique
 
 Le binaire installé vérifie la dernière release GitHub au plus une fois par
-jour et se met à jour tout seul (puis relance ta commande) si une version
-plus récente existe.
+jour. Si une version plus récente existe, il demande d'abord (style
+oh-my-zsh) :
 
-- `mini-moulinette update` — forcer la mise à jour immédiatement
+```
+⟳ v0.4.0 available (current v0.3.0). Update now? [Y/n]
+```
+
+`y`/Entrée met à jour puis relance ta commande ; `n` continue simplement.
+Sans terminal (scripts, CI), simple notification, pas de blocage.
+
+- `mini-moulinette update` — mettre à jour tout de suite, sans question
 - `MINI_MOULINETTE_NO_UPDATE=1` — désactiver la vérification automatique
 - Les builds de dev (lancés depuis `target/release/`) ne sont jamais mis à jour.
 

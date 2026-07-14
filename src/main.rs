@@ -142,10 +142,29 @@ fn maybe_auto_update() {
         return;
     }
 
-    println!("{} v{} available (current v{}), updating...",
+    // oh-my-zsh style: ask, don't force. Without a tty (scripts, CI) just
+    // print a notice and keep going.
+    use std::io::{IsTerminal, Write};
+    if !std::io::stdin().is_terminal() {
+        println!("{} v{} available (current v{}) — run {} to upgrade\n",
+            "⟳".cyan().bold(), latest, current, "mini-moulinette update".bold());
+        return;
+    }
+    print!("{} v{} available (current v{}). Update now? [Y/n] ",
         "⟳".cyan().bold(), latest, current);
+    let _ = std::io::stdout().flush();
+    let mut answer = String::new();
+    let _ = std::io::stdin().read_line(&mut answer);
+    let answer = answer.trim().to_lowercase();
+    if !(answer.is_empty() || answer == "y" || answer == "yes" || answer == "o" || answer == "oui") {
+        println!("{} skipped — run {} whenever you want\n",
+            "▸".dimmed(), "mini-moulinette update".bold());
+        return;
+    }
+
+    println!("{} updating to v{}...", "⟳".cyan().bold(), latest);
     if run_update(false).is_err() {
-        println!("{} auto-update failed, run {} manually\n",
+        println!("{} update failed, run {} manually\n",
             "⚠".yellow(), "mini-moulinette update".bold());
         return;
     }
