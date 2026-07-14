@@ -10,8 +10,10 @@ use std::os::unix::process::ExitStatusExt;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use indicatif::{ProgressBar, ProgressStyle};
 
+const REPO: &str = "eyjvw/MiniMoulinette";
+
 #[derive(Parser, Debug)]
-#[command(name = "mini-moulinette", version = "0.1.0", about = "Parallel test runner for 42 assignments", long_about = None)]
+#[command(name = "mini-moulinette", version, about = "Parallel test runner for 42 assignments", long_about = None)]
 struct Cli {
     #[arg(name = "ASSIGNMENT")]
     assignment: Option<String>,
@@ -37,11 +39,15 @@ enum Commands {
 fn main() -> Result<()> {
     let cli = Cli::parse();
     match &cli.command {
-        Some(Commands::Run { assignment, path, strict }) => run_assignment(assignment, path, *strict)?,
+        Some(Commands::Run { assignment, path, strict }) => {
+            maybe_auto_update();
+            run_assignment(assignment, path, *strict)?
+        }
         Some(Commands::Init) => println!("Initializing..."),
-        Some(Commands::Update) => println!("Updating..."),
+        Some(Commands::Update) => run_update(true)?,
         None => {
             if let Some(assignment) = &cli.assignment {
+                maybe_auto_update();
                 run_assignment(assignment, &PathBuf::from("."), false)?;
             } else {
                 println!("{}", "Please provide an assignment name".red());
@@ -49,6 +55,111 @@ fn main() -> Result<()> {
         }
     }
     Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// self-update
+// ---------------------------------------------------------------------------
+
+/// The install root (~/.mini-moulinette) if this binary was installed there
+/// by install.sh. Dev builds (target/release/...) are never auto-updated.
+fn install_root() -> Option<PathBuf> {
+    let home = std::env::var("HOME").ok()?;
+    let root = PathBuf::from(home).join(".mini-moulinette");
+    let exe = std::env::current_exe().ok()?.canonicalize().ok()?;
+    if exe.starts_with(root.canonicalize().ok()?) {
+        Some(root)
+    } else {
+        None
+    }
+}
+
+/// Latest release tag, resolved from the /releases/latest redirect (no API
+/// rate limit, no JSON). Returns e.g. "0.2.0".
+fn latest_version() -> Option<String> {
+    let out = Command::new("curl")
+        .args(["-fsSLI", "-o", "/dev/null", "-w", "%{url_effective}", "--max-time", "4",
+               &format!("https://github.com/{}/releases/latest", REPO)])
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let url = String::from_utf8_lossy(&out.stdout);
+    let tag = url.trim().rsplit('/').next()?.trim_start_matches('v').to_string();
+    if tag.is_empty() || tag == "latest" { None } else { Some(tag) }
+}
+
+fn parse_semver(v: &str) -> (u64, u64, u64) {
+    let mut it = v.split('.').map(|p| p.trim().parse::<u64>().unwrap_or(0));
+    (it.next().unwrap_or(0), it.next().unwrap_or(0), it.next().unwrap_or(0))
+}
+
+/// Re-run the installer. `verbose` prints its output (manual `update`);
+/// otherwise it runs quietly (auto-update path).
+fn run_update(verbose: bool) -> Result<()> {
+    let cmd = format!(
+        "curl -fsSL https://raw.githubusercontent.com/{}/main/install.sh | sh", REPO);
+    let status = if verbose {
+        Command::new("sh").arg("-c").arg(&cmd).status()?
+    } else {
+        Command::new("sh").arg("-c").arg(&cmd)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()?
+    };
+    if !status.success() {
+        anyhow::bail!("update failed (installer exited with an error)");
+    }
+    Ok(())
+}
+
+/// Once a day, compare the running version to the latest release. If newer,
+/// reinstall and re-exec the fresh binary with the same arguments.
+/// Opt-out: MINI_MOULINETTE_NO_UPDATE=1. Dev builds are skipped.
+fn maybe_auto_update() {
+    if std::env::var("MINI_MOULINETTE_NO_UPDATE").is_ok() {
+        return;
+    }
+    let Some(root) = install_root() else { return };
+
+    // throttle: at most one remote check per 24h
+    let stamp = root.join(".last_update_check");
+    if let Ok(meta) = fs::metadata(&stamp) {
+        if let Ok(modified) = meta.modified() {
+            if let Ok(age) = modified.elapsed() {
+                if age.as_secs() < 24 * 3600 {
+                    return;
+                }
+            }
+        }
+    }
+    let _ = fs::write(&stamp, "");
+
+    let Some(latest) = latest_version() else { return };
+    let current = env!("CARGO_PKG_VERSION");
+    if parse_semver(&latest) <= parse_semver(current) {
+        return;
+    }
+
+    println!("{} v{} available (current v{}), updating...",
+        "⟳".cyan().bold(), latest, current);
+    if run_update(false).is_err() {
+        println!("{} auto-update failed, run {} manually\n",
+            "⚠".yellow(), "mini-moulinette update".bold());
+        return;
+    }
+    println!("{} updated to v{}\n", "✓".green().bold(), latest);
+
+    // re-exec the freshly installed binary with the original arguments
+    let exe = root.join("mini-moulinette");
+    use std::os::unix::process::CommandExt;
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let _ = Command::new(exe)
+        .args(args)
+        .env("MINI_MOULINETTE_NO_UPDATE", "1")
+        .exec();
+    // exec only returns on failure; grading continues on the old version
 }
 
 /// Locate the bundled test suites. Priority: ./tests (working from a clone),

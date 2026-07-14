@@ -72,6 +72,8 @@ info "Installing into $INSTALL_DIR"
 mkdir -p "$INSTALL_DIR"
 rm -rf "$INSTALL_DIR/tests"
 cp -r "$tmp/pkg/tests" "$INSTALL_DIR/tests"
+# rm first: cp onto a running binary fails with ETXTBSY (self-update case)
+rm -f "$INSTALL_DIR/mini-moulinette"
 cp "$tmp/pkg/mini-moulinette" "$INSTALL_DIR/mini-moulinette"
 chmod +x "$INSTALL_DIR/mini-moulinette"
 
