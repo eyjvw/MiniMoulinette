@@ -184,15 +184,15 @@ fn maybe_auto_update() {
     if let Ok(meta) = fs::metadata(&stamp) {
         if let Ok(modified) = meta.modified() {
             if let Ok(age) = modified.elapsed() {
-                if age.as_secs() < 24 * 3600 {
+                if age.as_secs() < 3600 {
                     return;
                 }
             }
         }
     }
-    let _ = fs::write(&stamp, "");
 
     let Some(latest) = latest_version() else { return };
+    let _ = fs::write(&stamp, "");
     let current = env!("CARGO_PKG_VERSION");
     if parse_semver(&latest) <= parse_semver(current) {
         return;
