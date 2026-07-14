@@ -114,6 +114,17 @@ in `sandbox/`, so the expected output reflects a correct implementation.
 
 Per-test execution timeout: 5 s (infinite-loop guard).
 
+### Error trace
+
+Console output only shows the first errors, truncated. When at least one test
+fails, the full details (complete compiler errors, full expected/got outputs,
+the source of each failing test main, full `check.sh` output) are written to a
+trace file — its path is printed at the end of the run:
+
+```
+📄 Full error trace: /tmp/mini-moulinette-C11-7ea75552.trace
+```
+
 ---
 
 ## Français
@@ -226,3 +237,15 @@ de `sandbox/`, donc la sortie attendue reflète une implémentation correcte.
   C11 ex05 (do-op).
 
 Timeout d'exécution par test : 5 s (anti-boucle infinie).
+
+### Trace d'erreurs
+
+La console n'affiche que les premières erreurs, tronquées. Dès qu'un test
+échoue, le détail complet (erreurs de compilation entières, sorties
+attendues/obtenues complètes, source du main de test qui échoue, sortie
+complète des `check.sh`) est écrit dans un fichier de trace — son chemin
+s'affiche en fin de run :
+
+```
+📄 Full error trace: /tmp/mini-moulinette-C11-7ea75552.trace
+```

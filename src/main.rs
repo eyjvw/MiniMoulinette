@@ -226,6 +226,8 @@ fn run_assignment(assignment: &str, path: &PathBuf, is_strict: bool) -> Result<(
     let max_score = total_exercises * 100;
     let points_per_ex = 100;
     let mut strict_mode_failed = false;
+    // full failure details go here; written to a trace file at the end
+    let mut trace = String::new();
 
     for ex in exercises {
         if is_strict && strict_mode_failed {
@@ -236,9 +238,9 @@ fn run_assignment(assignment: &str, path: &PathBuf, is_strict: bool) -> Result<(
 
         let test_ex_dir = tests_dir.join(&ex);
         let student_ex_dir = path.join(&ex);
-        
-        let passed = run_exercise_parallel(&ex, &test_ex_dir, &student_ex_dir)?;
-        
+
+        let passed = run_exercise_parallel(&ex, &test_ex_dir, &student_ex_dir, &mut trace)?;
+
         if passed {
             score += points_per_ex;
         } else if is_strict {
@@ -261,8 +263,34 @@ fn run_assignment(assignment: &str, path: &PathBuf, is_strict: bool) -> Result<(
     }
     
     println!("{}\n", "╰────────────────────────────────────────────────────────────╯".magenta().bold());
-    
+
+    if !trace.is_empty() {
+        let trace_path = std::env::temp_dir().join(format!(
+            "mini-moulinette-{}-{}.trace",
+            assignment,
+            &uuid::Uuid::new_v4().to_string()[..8]
+        ));
+        let header = format!(
+            "mini-moulinette v{} — {} — dir: {}\nscore: {}/100\n\n",
+            env!("CARGO_PKG_VERSION"), assignment, path.display(), grade.round());
+        if fs::write(&trace_path, header + &trace).is_ok() {
+            println!("{} Full error trace: {}\n",
+                "📄".bold(), trace_path.display().to_string().cyan());
+        }
+    }
+
     Ok(())
+}
+
+/// Append one failure block to the trace buffer (full, untruncated).
+fn trace_block(trace: &mut String, location: &str, kind: &str, body: &str) {
+    trace.push_str(&"=".repeat(79));
+    trace.push('\n');
+    trace.push_str(&format!("{} — {}\n", location, kind));
+    trace.push_str(&"-".repeat(79));
+    trace.push('\n');
+    trace.push_str(body.trim_end());
+    trace.push_str("\n\n");
 }
 
 struct TestCase {
@@ -283,7 +311,7 @@ const TEST_TIMEOUT_SECS: u64 = 5;
 
 const BUILD_TIMEOUT_SECS: u64 = 30;
 
-fn run_build_check(ex_name: &str, check_script: &PathBuf, student_ex_dir: &PathBuf) -> Result<bool> {
+fn run_build_check(ex_name: &str, check_script: &PathBuf, student_ex_dir: &PathBuf, trace: &mut String) -> Result<bool> {
     use std::process::Stdio;
     use std::time::{Duration, Instant};
 
@@ -340,23 +368,27 @@ fn run_build_check(ex_name: &str, check_script: &PathBuf, student_ex_dir: &PathB
     } else {
         if timed_out {
             println!("   ╰── {} build check timed out after {}s\n", "✗".red().bold(), BUILD_TIMEOUT_SECS);
+            trace_block(trace, &format!("{} (build check)", ex_name),
+                &format!("timed out after {}s", BUILD_TIMEOUT_SECS), &output);
         } else {
             println!("   ╰── {} build check failed", "✗".red().bold());
             for line in output.lines().take(6) {
                 println!("        {}", line.dimmed());
             }
             println!();
+            trace_block(trace, &format!("{} (build check)", ex_name),
+                "build check failed (full check.sh output below)", &output);
         }
         Ok(false)
     }
 }
 
-fn run_exercise_parallel(ex_name: &str, test_ex_dir: &PathBuf, student_ex_dir: &PathBuf) -> Result<bool> {
+fn run_exercise_parallel(ex_name: &str, test_ex_dir: &PathBuf, student_ex_dir: &PathBuf, trace: &mut String) -> Result<bool> {
     // Build-check exercises (Makefile, shell scripts, libraries) can't be graded by
     // compiling test_*.c against a single source. A check.sh does the build/link/run.
     let check_script = test_ex_dir.join("check.sh");
     if check_script.exists() {
-        return run_build_check(ex_name, &check_script, student_ex_dir);
+        return run_build_check(ex_name, &check_script, student_ex_dir, trace);
     }
 
     let files_req_path = test_ex_dir.join("files.txt");
@@ -526,43 +558,71 @@ fn run_exercise_parallel(ex_name: &str, test_ex_dir: &PathBuf, student_ex_dir: &
         println!("   ╰── {} {}/{} tests passed | {} failed | {} segfault(s)", "✗".red().bold(), p, total, f, s);
         
         let mut printed_errors = 0;
-        for (tc, res) in results {
-            if printed_errors >= 3 {
-                println!("        ... and more errors. (Truncated for readability)");
-                break;
-            }
+        let mut truncated_notice = false;
+        for (tc, res) in &results {
             let tc_name = tc.c_file.file_name().unwrap().to_string_lossy();
+            let loc = format!("{}: {}", ex_name, tc_name);
+            let print_it = printed_errors < 3;
+            if !print_it && !truncated_notice && !matches!(res, TestResult::Passed) {
+                println!("        ... and more errors. (Full details in the trace file)");
+                truncated_notice = true;
+            }
             match res {
                 TestResult::Segfault => {
-                    println!("        ╭── [{}] {}", tc_name.yellow(), "Segfault (Signal 11)".bold().red());
-                    println!("        ╰── The program crashed attempting to access invalid memory.\n");
+                    if print_it {
+                        println!("        ╭── [{}] {}", tc_name.yellow(), "Segfault (Signal 11)".bold().red());
+                        println!("        ╰── The program crashed attempting to access invalid memory.\n");
+                    }
+                    let src = fs::read_to_string(&tc.c_file).unwrap_or_default();
+                    trace_block(trace, &loc, "Segfault (signal 11)",
+                        &format!("test main:\n{}", src));
                     printed_errors += 1;
                 }
                 TestResult::Killed(sig) => {
-                    println!("        ╭── [{}] {}", tc_name.yellow(), "Killed by signal".bold().red());
-                    println!("        ╰── Process terminated via signal {}\n", sig);
+                    if print_it {
+                        println!("        ╭── [{}] {}", tc_name.yellow(), "Killed by signal".bold().red());
+                        println!("        ╰── Process terminated via signal {}\n", sig);
+                    }
+                    let src = fs::read_to_string(&tc.c_file).unwrap_or_default();
+                    trace_block(trace, &loc, &format!("killed by signal {}", sig),
+                        &format!("test main:\n{}", src));
                     printed_errors += 1;
                 }
                 TestResult::Timeout => {
-                    println!("        ╭── [{}] {}", tc_name.yellow(), "Timeout".bold().red());
-                    println!("        ╰── The program ran longer than {}s (possible infinite loop).\n", TEST_TIMEOUT_SECS);
+                    if print_it {
+                        println!("        ╭── [{}] {}", tc_name.yellow(), "Timeout".bold().red());
+                        println!("        ╰── The program ran longer than {}s (possible infinite loop).\n", TEST_TIMEOUT_SECS);
+                    }
+                    let src = fs::read_to_string(&tc.c_file).unwrap_or_default();
+                    trace_block(trace, &loc,
+                        &format!("timeout after {}s (possible infinite loop)", TEST_TIMEOUT_SECS),
+                        &format!("test main:\n{}", src));
                     printed_errors += 1;
                 }
                 TestResult::FailedOutput(exp, act) => {
-                    println!("        ╭── [{}] {}", tc_name.yellow(), "Output mismatch".bold().red());
-                    println!("        │ Expected: {}", format!("{:?}", exp).green());
-                    println!("        ╰── Got     : {}\n", format!("{:?}", act).red());
+                    if print_it {
+                        println!("        ╭── [{}] {}", tc_name.yellow(), "Output mismatch".bold().red());
+                        println!("        │ Expected: {}", format!("{:?}", exp).green());
+                        println!("        ╰── Got     : {}\n", format!("{:?}", act).red());
+                    }
+                    let src = fs::read_to_string(&tc.c_file).unwrap_or_default();
+                    trace_block(trace, &loc, "output mismatch",
+                        &format!("--- expected ---\n{}\n--- got ---\n{}\n--- test main ---\n{}",
+                            exp, act, src));
                     printed_errors += 1;
                 }
                 TestResult::CompilationError(err) => {
-                    println!("        ╭── [{}] {}", tc_name.yellow(), "Compilation / Execution Error".bold().red());
-                    for line in err.lines().take(2) {
-                        println!("        │  {}", line.dimmed());
+                    if print_it {
+                        println!("        ╭── [{}] {}", tc_name.yellow(), "Compilation / Execution Error".bold().red());
+                        for line in err.lines().take(2) {
+                            println!("        │  {}", line.dimmed());
+                        }
+                        println!("        ╰── (Full error log in the trace file)\n");
                     }
-                    println!("        ╰── (Error log truncated)\n");
+                    trace_block(trace, &loc, "compilation / execution error", err);
                     printed_errors += 1;
                 }
-                _ => {}
+                TestResult::Passed => {}
             }
         }
     }
