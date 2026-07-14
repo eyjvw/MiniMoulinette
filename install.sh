@@ -39,14 +39,30 @@ esac
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
+info "Platform: $os/$arch -> ${target:-unsupported}"
+
+# resolve the latest tag explicitly (also shows WHICH version gets installed)
+latest="$(curl -fsSLI --retry 3 --retry-all-errors -o /dev/null -w '%{url_effective}' \
+	"https://github.com/$REPO/releases/latest" 2>/dev/null | sed 's|.*/||')"
+if [ -n "$latest" ] && [ "$latest" != "latest" ]; then
+	info "Latest release: $latest"
+else
+	err "could not resolve the latest release (network/proxy issue?)"
+	latest=""
+fi
+
 fetched=0
 if [ -n "$target" ]; then
-	url="https://github.com/$REPO/releases/latest/download/mini-moulinette-$target.tar.gz"
+	if [ -n "$latest" ]; then
+		url="https://github.com/$REPO/releases/download/$latest/mini-moulinette-$target.tar.gz"
+	else
+		url="https://github.com/$REPO/releases/latest/download/mini-moulinette-$target.tar.gz"
+	fi
 	info "Downloading mini-moulinette ($target)..."
-	if curl -fsSL "$url" -o "$tmp/mm.tar.gz" 2>/dev/null; then
+	if curl -fSL --retry 3 --retry-all-errors --progress-bar "$url" -o "$tmp/mm.tar.gz"; then
 		fetched=1
 	else
-		err "no prebuilt binary at $url"
+		err "download failed: $url"
 	fi
 fi
 
@@ -80,7 +96,17 @@ chmod +x "$INSTALL_DIR/mini-moulinette"
 mkdir -p "$BIN_DIR"
 ln -sf "$INSTALL_DIR/mini-moulinette" "$BIN_DIR/mini-moulinette"
 
-info "Installed: $BIN_DIR/mini-moulinette"
+installed_v="$("$INSTALL_DIR/mini-moulinette" version 2>/dev/null \
+	|| "$INSTALL_DIR/mini-moulinette" --version 2>/dev/null \
+	|| echo '?')"
+info "Installed: $BIN_DIR/mini-moulinette ($installed_v)"
+
+# an older binary earlier in PATH would shadow the fresh install
+current="$(command -v mini-moulinette 2>/dev/null || true)"
+if [ -n "$current" ] && [ "$current" != "$BIN_DIR/mini-moulinette" ]; then
+	printf '\033[1;33mwarning:\033[0m another mini-moulinette shadows this install: %s\n' "$current"
+	printf 'remove it or make sure %s comes first in your PATH.\n' "$BIN_DIR"
+fi
 
 # add BIN_DIR to PATH in the shell rc files if missing
 add_path_to_rc()

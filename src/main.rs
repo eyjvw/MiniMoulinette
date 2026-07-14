@@ -137,7 +137,8 @@ fn install_root() -> Option<PathBuf> {
 /// rate limit, no JSON). Returns e.g. "0.2.0".
 fn latest_version() -> Option<String> {
     let out = Command::new("curl")
-        .args(["-fsSLI", "-o", "/dev/null", "-w", "%{url_effective}", "--max-time", "4",
+        .args(["-fsSLI", "--retry", "2", "--retry-all-errors",
+               "-o", "/dev/null", "-w", "%{url_effective}", "--max-time", "8",
                &format!("https://github.com/{}/releases/latest", REPO)])
         .output()
         .ok()?;
