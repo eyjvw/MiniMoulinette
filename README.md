@@ -30,6 +30,15 @@ cd ~/piscine/C07        # directory containing ex00/, ex01/, ...
 mini-moulinette C07
 ```
 
+### Auto-update
+
+The installed binary checks the latest GitHub release at most once a day and
+updates itself (then re-runs your command) when a newer version exists.
+
+- `mini-moulinette update` — force an update now
+- `MINI_MOULINETTE_NO_UPDATE=1` — disable the automatic check
+- Dev builds (run from `target/release/`) are never auto-updated.
+
 ### Building from source
 
 Requirements: `cc` (gcc/clang), Rust + Cargo (`curl https://sh.rustup.rs -sSf | sh`).
@@ -123,6 +132,16 @@ avec cargo si disponible.
 cd ~/piscine/C07        # dossier contenant ex00/, ex01/, ...
 mini-moulinette C07
 ```
+
+### Mise à jour automatique
+
+Le binaire installé vérifie la dernière release GitHub au plus une fois par
+jour et se met à jour tout seul (puis relance ta commande) si une version
+plus récente existe.
+
+- `mini-moulinette update` — forcer la mise à jour immédiatement
+- `MINI_MOULINETTE_NO_UPDATE=1` — désactiver la vérification automatique
+- Les builds de dev (lancés depuis `target/release/`) ne sont jamais mis à jour.
 
 ### Build depuis les sources
 
