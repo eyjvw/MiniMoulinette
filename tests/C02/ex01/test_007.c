@@ -1,3 +1,3 @@
 #include <stdio.h>
 char *ft_strncpy(char *dest, char *src, unsigned int n);
-int main(){char d[500]={0}; printf("%s", ft_strncpy(d, "HgwVInW", 7)); return 0;}
+int main(void){char dest[2]; char src[] = "x";for (int k = 0; k < 2; k++) dest[k] = 'X';char *r = ft_strncpy(dest, src, 1);printf("ret=%d bytes=", r == dest);for (int k = 0; k < 2; k++) printf("%02x ", (unsigned char)dest[k]);return 0;}

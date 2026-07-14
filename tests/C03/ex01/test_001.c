@@ -1,3 +1,3 @@
 #include <stdio.h>
 int ft_strncmp(char *s1, char *s2, unsigned int n);
-int main(){int r = ft_strncmp("P", "8", 1); if(r>0)r=1; if(r<0)r=-1; printf("%d", r); return 0;}
+int main(void){int r = ft_strncmp("abc", "abc", 3);printf("%d", (r > 0) - (r < 0));return 0;}

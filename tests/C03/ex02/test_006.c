@@ -1,3 +1,3 @@
 #include <stdio.h>
 char *ft_strcat(char *dest, char *src);
-int main(){char d[500]="FTj0uK"; printf("%s", ft_strcat(d, "7IMHYp")); return 0;}
+int main(void){char dest[18] = "prefix-"; char src[] = "suffix end";char *r = ft_strcat(dest, src);printf("ret=%d term=%d [%s]", r == dest, dest[17] == 0, dest);return 0;}

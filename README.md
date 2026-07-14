@@ -127,6 +127,17 @@ in `sandbox/`, so the expected output reflects a correct implementation.
 
 Per-test execution timeout: 5 s (infinite-loop guard).
 
+### Deep memory checks (AddressSanitizer)
+
+Every test that produces the right output is compiled and run a second time
+under AddressSanitizer: heap/stack buffer overflows, use-after-free and
+double free fail the test even when stdout was correct. The string tests use
+exactly-sized buffers, so a single off-by-one byte is caught. Leak detection
+is off by design (the test mains never free on purpose).
+
+> ⚠ This remains an **unofficial** tester — a 100/100 here is not a
+> guarantee of anything at the defense (the banner reminds you).
+
 ### Cheating checks
 
 - **Forbidden functions**: each student `.c` is compiled to an object and its
@@ -272,6 +283,18 @@ de `sandbox/`, donc la sortie attendue reflète une implémentation correcte.
   C11 ex05 (do-op).
 
 Timeout d'exécution par test : 5 s (anti-boucle infinie).
+
+### Détection mémoire approfondie (AddressSanitizer)
+
+Chaque test dont la sortie est correcte est recompilé et relancé sous
+AddressSanitizer : overflow heap/stack, use-after-free et double free font
+échouer le test même si stdout était bon. Les tests de chaînes utilisent des
+buffers à la taille exacte — un seul octet d'off-by-one est détecté. La
+détection de fuites est volontairement désactivée (les mains de test ne
+free jamais, exprès).
+
+> ⚠ Ça reste un testeur **non officiel** — un 100/100 ici ne garantit rien
+> en soutenance (la bannière le rappelle).
 
 ### Checks anti-triche
 

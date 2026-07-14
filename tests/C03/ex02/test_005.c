@@ -1,3 +1,3 @@
 #include <stdio.h>
 char *ft_strcat(char *dest, char *src);
-int main(){char d[500]="HyjN5"; printf("%s", ft_strcat(d, "HyjN5")); return 0;}
+int main(void){char dest[3] = "a"; char src[] = "b";char *r = ft_strcat(dest, src);printf("ret=%d term=%d [%s]", r == dest, dest[2] == 0, dest);return 0;}

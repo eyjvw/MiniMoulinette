@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+
 """Generate mini-moulinette test cases for the gap exercises (C00-C07, C06 skipped).
 
 For each test: write test_NNN.c (a main that exercises the function and prints a
@@ -23,10 +23,6 @@ CC = ["cc", "-Wall", "-Wextra", "-Werror"]
 def ref(*parts):
     return os.path.join(SANDBOX, *parts)
 
-
-# ---------------------------------------------------------------------------
-# helpers to build C test mains
-# ---------------------------------------------------------------------------
 
 def cstr(s):
     """Escape a python string into a C string literal body.
@@ -58,10 +54,6 @@ def cstr(s):
             prev_hex_escape = True
     return '"' + "".join(out) + '"'
 
-
-# ---------------------------------------------------------------------------
-# per-exercise test generators -> list of C source strings
-# ---------------------------------------------------------------------------
 
 def t_putchar():
     chars = ['A', 'z', '0', '!', ' ', '~', '\n', '\t', '@', '9']
@@ -107,7 +99,7 @@ def t_str_is_printable():
 def t_putstr_non_printable():
     strs = ["Hello", "Coucou\ntu vas bien ?", "tab\there", "\x01\x02\x03",
             "mix\x7fed", "normal text", "", "end\n", "\x00hidden", "abc"]
-    # note: \x00 truncates a C string, so drop it
+
     strs = [s for s in strs if "\x00" not in s]
     return ["void ft_putstr_non_printable(char *str);\n"
             "int main(void){char s[] = %s; ft_putstr_non_printable(s);return 0;}\n" % cstr(s)
@@ -131,8 +123,87 @@ def t_print_memory():
     return out
 
 
+def t_strcpy():
+    srcs = ["", "a", "hello", "42 school piscine", "exact fit here!",
+            "with\ttab and  spaces", "x" * 60]
+    out = []
+    for s in srcs:
+        cap = len(s) + 1
+        out.append(
+            "#include <stdio.h>\nchar *ft_strcpy(char *dest, char *src);\n"
+            "int main(void){char dest[%d]; char src[] = %s;"
+            "for (int k = 0; k < %d; k++) dest[k] = 'X';"
+            "char *r = ft_strcpy(dest, src);"
+            "printf(\"ret=%%d term=%%d [%%s]\", r == dest, dest[%d] == 0, dest);"
+            "return 0;}\n" % (cap, cstr(s), cap, len(s)))
+    return out
+
+
+def t_strncpy():
+    cases = [("hello", 3), ("hello", 5), ("hi", 6), ("", 4), ("abc", 0),
+             ("world!", 6), ("pad me", 12), ("x", 1)]
+    out = []
+    for s, n in cases:
+        cap = max(n, 1) + 1
+        out.append(
+            "#include <stdio.h>\nchar *ft_strncpy(char *dest, char *src, unsigned int n);\n"
+            "int main(void){char dest[%d]; char src[] = %s;"
+            "for (int k = 0; k < %d; k++) dest[k] = 'X';"
+            "char *r = ft_strncpy(dest, src, %d);"
+            "printf(\"ret=%%d bytes=\", r == dest);"
+            "for (int k = 0; k < %d; k++) printf(\"%%02x \", (unsigned char)dest[k]);"
+            "return 0;}\n" % (cap, cstr(s), cap, n, cap))
+    return out
+
+
+def _sign_cmp_main(proto, call):
+    return ("#include <stdio.h>\n" + proto + "\n"
+            "int main(void){int r = " + call + ";"
+            "printf(\"%d\", (r > 0) - (r < 0));return 0;}\n")
+
+
+def t_strcmp():
+    cases = [("", ""), ("a", ""), ("", "a"), ("abc", "abc"), ("abc", "abd"),
+             ("abd", "abc"), ("abc", "abcd"), ("abcd", "abc"), ("A", "a"),
+             ("hello world", "hello_world"), ("42", "42"), ("a", "b")]
+    out = []
+    for a, b in cases:
+        out.append(_sign_cmp_main(
+            "int ft_strcmp(char *s1, char *s2);",
+            "ft_strcmp(%s, %s)" % (cstr(a), cstr(b))))
+    return out
+
+
+def t_strncmp():
+    cases = [("", "", 5), ("abc", "abc", 3), ("abc", "abd", 2), ("abc", "abd", 3),
+             ("abd", "abc", 10), ("abc", "abcd", 4), ("abc", "abcd", 3),
+             ("hello", "help", 0), ("A", "a", 1), ("same", "same", 100),
+             ("cut", "cup", 2), ("cut", "cup", 3)]
+    out = []
+    for a, b, n in cases:
+        out.append(_sign_cmp_main(
+            "int ft_strncmp(char *s1, char *s2, unsigned int n);",
+            "ft_strncmp(%s, %s, %d)" % (cstr(a), cstr(b), n)))
+    return out
+
+
+def t_strcat():
+    cases = [("Hello ", "World"), ("", "x"), ("abc", ""), ("", ""),
+             ("42", " school"), ("a", "b"), ("prefix-", "suffix end")]
+    out = []
+    for d, s in cases:
+        cap = len(d) + len(s) + 1
+        out.append(
+            "#include <stdio.h>\nchar *ft_strcat(char *dest, char *src);\n"
+            "int main(void){char dest[%d] = %s; char src[] = %s;"
+            "char *r = ft_strcat(dest, src);"
+            "printf(\"ret=%%d term=%%d [%%s]\", r == dest, dest[%d] == 0, dest);"
+            "return 0;}\n" % (cap, cstr(d), cstr(s), len(d) + len(s)))
+    return out
+
+
 def t_strlcat():
-    # (dest_initial, dest_capacity, src, size_arg)
+
     cases = [
         ("foo", 10, "bar", 10),
         ("Hello ", 20, "World", 20),
@@ -165,7 +236,7 @@ def t_putnbr_base():
         "poneyvif": "poneyvif",
     }
     vals = [0, 42, -42, 255, -255, 2147483647, -2147483648, 16, -1]
-    # invalid bases: must print nothing
+
     invalid = ["", "0", "011", "01+", "0-1", "01 2"]
     out = []
     for v in vals:
@@ -199,7 +270,7 @@ def t_atoi_base():
             "#include <stdio.h>\nint ft_atoi_base(char *str, char *base);\n"
             "int main(void){printf(\"%%d\", ft_atoi_base(%s, %s));return 0;}\n"
             % (cstr(nbr), cstr(bases[bk])))
-    # invalid base -> convention: ft_atoi_base returns 0
+
     for b in ["", "0", "011", "01 ", "-01", "+01"]:
         out.append(
             "#include <stdio.h>\nint ft_atoi_base(char *str, char *base);\n"
@@ -227,7 +298,9 @@ def t_strlcpy():
     cases = [("Hello World", 20, 6), ("Hello World", 20, 20),
              ("", 10, 5), ("truncated string", 30, 5), ("exact", 20, 6),
              ("overflow", 20, 3), ("42", 10, 100), ("size zero", 20, 1),
-             ("full copy here", 40, 15)]
+             ("full copy here", 40, 15),
+
+             ("Hello World", 6, 6), ("tight", 6, 6), ("cutme", 3, 3)]
     out = []
     for src, cap, size in cases:
         out.append(
@@ -243,7 +316,10 @@ def t_strncat():
     cases = [("Hello ", 20, "World", 5), ("foo", 20, "bar", 10), ("abc", 20, "def", 0),
              ("start", 20, "-end", 2), ("", 20, "full", 4), ("x", 20, "yyyy", 100),
              ("cat", 20, "", 5), ("12345", 20, "6789", 3), ("Rick", 20, "Morty", 3),
-             ("A", 20, "BCDEFG", 6)]
+             ("A", 20, "BCDEFG", 6),
+
+             ("Hello ", 12, "World", 5), ("ab", 5, "cdX", 2), ("", 4, "abc", 3),
+             ("tight", 6, "x", 0)]
     out = []
     for dest, cap, src, nb in cases:
         out.append(
@@ -304,8 +380,6 @@ def t_sqrt():
     return ["#include <stdio.h>\nint ft_sqrt(int nb);\n"
             "int main(void){printf(\"%%d\", ft_sqrt(%d));return 0;}\n" % v for v in vals]
 
-
-# ---- C07 ----
 
 def t_strdup():
     strs = ["", "a", "Rick", "Hello, World!", "42 is the answer",
@@ -383,7 +457,7 @@ def t_convert_base():
         ("2147483647", "0123456789", "01"),
         ("101", "01", "01"),
         ("z", "0123456789abcdefghijklmnopqrstuvwxyz", "0123456789"),
-        # invalid bases -> NULL
+
         ("42", "00", "0123456789"),
         ("42", "0123456789", "0"),
         ("42", "01+", "0123456789"),
@@ -426,11 +500,9 @@ def t_split():
     return out
 
 
-# ---- C08 (headers / structs) ----
-
 def t_ft_h():
-    # Uses all 5 prototypes; impls defined after main so the calls rely on the
-    # header's declarations (a missing prototype fails -Werror).
+
+
     return ["#include <unistd.h>\n#include \"ft.h\"\n"
             "int main(void){int a = 1; int b = 2; ft_swap(&a, &b);"
             "ft_putchar('0' + a); ft_putchar('0' + b); ft_putchar('\\n');"
@@ -447,7 +519,7 @@ def t_ft_h():
 
 
 def t_ft_boolean():
-    # The exact main from the subject; 0 extra args -> even.
+
     return ["#include \"ft_boolean.h\"\n"
             "void ft_putstr(char *str){while (*str) write(1, str++, 1);}\n"
             "t_bool ft_is_even(int nbr){return (EVEN(nbr)) ? TRUE : FALSE;}\n"
@@ -470,7 +542,7 @@ def t_ft_point():
 
 
 def t_strs_to_tab():
-    # Provide a few argv-like arrays; print each element's fields.
+
     arrays = [
         ["Rick", "Morty", "Summer"],
         ["one"],
@@ -495,7 +567,7 @@ def t_strs_to_tab():
 
 
 def t_show_tab():
-    # Build the array manually, call ft_show_tab, capture its stdout.
+
     arrays = [
         ["Rick", "Morty"],
         ["one", "two", "three"],
@@ -517,8 +589,6 @@ def t_show_tab():
             "ft_show_tab(t);return 0;}\n" % (n + 1, fill, n))
     return out
 
-
-# ---- C11 (function pointers) ----
 
 def t_foreach():
     arrays = [[1, 2, 3], [42], [], [-1, 0, 1, 2147483647, -2147483648],
@@ -610,8 +680,8 @@ def t_count_if():
 
 
 def t_is_sort():
-    # ascending cmp only; strictly-descending arrays are ambiguous between
-    # common interpretations of the subject, so they are not tested.
+
+
     arrays = [
         ([1, 2, 3, 4], None), ([1, 3, 2], None), ([], None), ([42], None),
         ([1, 1, 2, 2, 3], None), ([5, 4, 6], None), ([0, 0, 0], None),
@@ -687,11 +757,6 @@ def t_advanced_sort_string_tab():
             "return 0;}\n" % (cmps[ck], _tab_lit(arr), ck))
     return out
 
-
-# ---- C12 (linked lists) ----
-# Tests include the student's own ft_list.h (found via -I). Field names
-# next/data are imposed by the subject. Where ft_create_elem is an authorized
-# helper of the tested function, the test defines it.
 
 L_PRE = ('#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n'
          '#include "ft_list.h"\n')
@@ -1016,8 +1081,6 @@ def t_sorted_list_merge():
     return out
 
 
-# ---- C13 (binary trees) ----
-
 B_PRE = ('#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n'
          '#include "ft_btree.h"\n')
 B_ND = ("static t_btree *nd(void *item, t_btree *left, t_btree *right)"
@@ -1029,7 +1092,7 @@ B_CREATE = ("t_btree *btree_create_node(void *item)"
             " n->item = item; n->left = NULL; n->right = NULL; return n;}\n")
 B_CMPS = "static int cmps(void *a, void *b){return strcmp(a, b);}\n"
 
-# trees as nested tuples: (item, left, right)
+
 TREE_BALANCED = ("d", ("b", ("a", None, None), ("c", None, None)),
                  ("f", ("e", None, None), ("g", None, None)))
 TREE_LEFT = ("c", ("b", ("a", None, None), None), None)
@@ -1137,12 +1200,8 @@ def t_btree_apply_by_level():
     return out
 
 
-# ---------------------------------------------------------------------------
-# exercise table
-# ---------------------------------------------------------------------------
-
 EXERCISES = [
-    # module, ex, student files.txt content (list), ref sources (list), test builder
+
     ("C00", "ex00", ["ft_putchar.c"], [ref("C00", "ex00", "ft_putchar.c")], t_putchar),
     ("C00", "ex01", ["ft_print_alphabet.c"], [ref("C00", "ex01", "ft_print_alphabet.c")],
      lambda: t_void_print("ft_print_alphabet")),
@@ -1158,15 +1217,18 @@ EXERCISES = [
     ("C00", "ex07", ["ft_putnbr.c"], [ref("C00", "ex07", "ft_putnbr.c")], t_putnbr),
     ("C00", "ex08", ["ft_print_combn.c"], [ref("C00", "ex08", "ft_print_combn.c")], t_print_combn),
 
+    ("C02", "ex00", ["ft_strcpy.c"], [ref("C02", "ex00", "ft_strcpy.c")], t_strcpy),
+    ("C02", "ex01", ["ft_strncpy.c"], [ref("C02", "ex01", "ft_strncpy.c")], t_strncpy),
     ("C02", "ex06", ["ft_str_is_printable.c"], [ref("C02", "ex06", "ft_str_is_printable.c")], t_str_is_printable),
     ("C02", "ex11", ["ft_putstr_non_printable.c"], [ref("C02", "ex11", "ft_putstr_non_printable.c")], t_putstr_non_printable),
-    # C02/ex12 ft_print_memory: prints the real runtime memory address -> output is
-    # non-deterministic and cannot be validated by exact stdout diff. Skipped.
-    # ("C02", "ex12", ["ft_print_memory.c"], [ref("C02", "ex12", "ft_print_memory.c")], t_print_memory),
+
 
     ("C02", "ex09", ["ft_strcapitalize.c"], [ref("C02", "ex09", "ft_strcapitalize.c")], t_strcapitalize),
     ("C02", "ex10", ["ft_strlcpy.c"], [ref("C02", "ex10", "ft_strlcpy.c")], t_strlcpy),
 
+    ("C03", "ex00", ["ft_strcmp.c"], [ref("C03", "ex00", "ft_strcmp.c")], t_strcmp),
+    ("C03", "ex01", ["ft_strncmp.c"], [ref("C03", "ex01", "ft_strncmp.c")], t_strncmp),
+    ("C03", "ex02", ["ft_strcat.c"], [ref("C03", "ex02", "ft_strcat.c")], t_strcat),
     ("C03", "ex03", ["ft_strncat.c"], [ref("C03", "ex03", "ft_strncat.c")], t_strncat),
     ("C03", "ex04", ["ft_strstr.c"], [ref("C03", "ex04", "ft_strstr.c")], t_strstr),
     ("C03", "ex05", ["ft_strlcat.c"], [ref("C03", "ex05", "ft_strlcat.c")], t_strlcat),
@@ -1199,8 +1261,6 @@ EXERCISES = [
 
     ("C09", "ex02", ["ft_split.c"], [ref("C09", "ex02", "ft_split.c")], t_split),
 
-    # C10 (ex00-ex03) and C11/ex05 are program+Makefile exercises graded by a
-    # hand-written check.sh in tests/, not generated here.
 
     ("C11", "ex00", ["ft_foreach.c"], [ref("C11", "ex00", "ft_foreach.c")], t_foreach),
     ("C11", "ex01", ["ft_map.c"], [ref("C11", "ex01", "ft_map.c")], t_map),
@@ -1228,8 +1288,8 @@ EXERCISES = [
      [ref("C12", "ex06", "ft_list_clear.c"), ref("C12", "ex06", "ft_list.h")], t_list_clear),
     ("C12", "ex07", ["ft_list_at.c", "ft_list.h"],
      [ref("C12", "ex07", "ft_list_at.c"), ref("C12", "ex07", "ft_list.h")], t_list_at),
-    # ex08: the subject says "we will use our own ft_list.h" -> the student
-    # only submits the .c; the header is provided in the test dir (AUX_FILES).
+
+
     ("C12", "ex08", ["ft_list_reverse.c"],
      [ref("C12", "ex08", "ft_list_reverse.c"), ref("C12", "ex08", "ft_list.h")], t_list_reverse),
     ("C12", "ex09", ["ft_list_foreach.c", "ft_list.h"],
@@ -1272,18 +1332,14 @@ EXERCISES = [
      [ref("C13", "ex07", "btree_apply_by_level.c"), ref("C13", "ex07", "ft_btree.h")], t_btree_apply_by_level),
 ]
 
-# extra files copied verbatim into the test dir (headers the moulinette
-# provides itself, e.g. C12/ex08 where the student does not submit ft_list.h)
+
 AUX_FILES = {
     ("C08", "ex04"): [ref("C08", "ex04", "ft_stock_str.h")],
     ("C08", "ex05"): [ref("C08", "ex05", "ft_stock_str.h")],
     ("C12", "ex08"): [ref("C12", "ex08", "ft_list.h")],
 }
 
-# authorized functions per exercise (from the subjects). Written to
-# allowed.txt in the test dir; the harness fails the exercise when the
-# student's objects reference any other external symbol. Exercises absent
-# from this table get no allowed.txt (check skipped, e.g. C08 headers).
+
 ALLOWED = {
     ("C00", "ex00"): ["write"], ("C00", "ex01"): ["write"],
     ("C00", "ex02"): ["write"], ("C00", "ex03"): ["write"],
@@ -1347,7 +1403,7 @@ def main():
     total = 0
     for module, ex, files, refs, builder in EXERCISES:
         out_dir = os.path.join(TESTS, module, ex)
-        # wipe existing test_* to regenerate cleanly
+
         if os.path.isdir(out_dir):
             for f in os.listdir(out_dir):
                 if f.startswith("test_"):
@@ -1368,7 +1424,7 @@ def main():
             cfile = os.path.join(out_dir, tname + ".c")
             with open(cfile, "w") as f:
                 f.write(src)
-            # compile test + refs -> run -> capture stdout
+
             with tempfile.TemporaryDirectory() as td:
                 binp = os.path.join(td, "b")
                 sources = [r for r in refs if r.endswith(".c")]
@@ -1393,8 +1449,7 @@ def main():
                     f.write(run.stdout)
         print("  %s/%s : %d tests (%s)" % (module, ex, len(tests), ", ".join(files)))
 
-    # static test dirs (C01, part of C02-C05, build-check exercises) are not
-    # in EXERCISES but still get their allowed.txt from the same table
+
     for (module, ex), fns in ALLOWED.items():
         d = os.path.join(TESTS, module, ex)
         if os.path.isdir(d):

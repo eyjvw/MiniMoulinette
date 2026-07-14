@@ -86,8 +86,6 @@ fn print_help() {
 }
 
 fn main() -> Result<()> {
-    // -h/--help/-V/--version are disabled in clap (the subcommands replace
-    // them); catch them here so they show the custom help instead of an error
     let raw: Vec<String> = std::env::args().skip(1).collect();
     if raw.iter().any(|a| a == "-h" || a == "--help") {
         print_help();
@@ -128,12 +126,6 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-// ---------------------------------------------------------------------------
-// self-update
-// ---------------------------------------------------------------------------
-
-/// The install root (~/.mini-moulinette) if this binary was installed there
-/// by install.sh. Dev builds (target/release/...) are never auto-updated.
 fn install_root() -> Option<PathBuf> {
     let home = std::env::var("HOME").ok()?;
     let root = PathBuf::from(home).join(".mini-moulinette");
@@ -145,8 +137,6 @@ fn install_root() -> Option<PathBuf> {
     }
 }
 
-/// Latest release tag, resolved from the /releases/latest redirect (no API
-/// rate limit, no JSON). Returns e.g. "0.2.0".
 fn latest_version() -> Option<String> {
     let out = Command::new("curl")
         .args(["-fsSLI", "--retry", "2", "--retry-all-errors",
@@ -167,8 +157,6 @@ fn parse_semver(v: &str) -> (u64, u64, u64) {
     (it.next().unwrap_or(0), it.next().unwrap_or(0), it.next().unwrap_or(0))
 }
 
-/// Re-run the installer. `verbose` prints its output (manual `update`);
-/// otherwise it runs quietly (auto-update path).
 fn run_update(verbose: bool) -> Result<()> {
     let cmd = format!(
         "curl -fsSL https://raw.githubusercontent.com/{}/main/install.sh | sh", REPO);
@@ -186,16 +174,12 @@ fn run_update(verbose: bool) -> Result<()> {
     Ok(())
 }
 
-/// Once a day, compare the running version to the latest release. If newer,
-/// reinstall and re-exec the fresh binary with the same arguments.
-/// Opt-out: MINI_MOULINETTE_NO_UPDATE=1. Dev builds are skipped.
 fn maybe_auto_update() {
     if std::env::var("MINI_MOULINETTE_NO_UPDATE").is_ok() {
         return;
     }
     let Some(root) = install_root() else { return };
 
-    // throttle: at most one remote check per 24h
     let stamp = root.join(".last_update_check");
     if let Ok(meta) = fs::metadata(&stamp) {
         if let Ok(modified) = meta.modified() {
@@ -214,8 +198,6 @@ fn maybe_auto_update() {
         return;
     }
 
-    // oh-my-zsh style: ask, don't force. Without a tty (scripts, CI) just
-    // print a notice and keep going.
     use std::io::{IsTerminal, Write};
     if !std::io::stdin().is_terminal() {
         println!("{} v{} available (current v{}) — run {} to upgrade\n",
@@ -242,7 +224,6 @@ fn maybe_auto_update() {
     }
     println!("{} updated to v{}\n", "✓".green().bold(), latest);
 
-    // re-exec the freshly installed binary with the original arguments
     let exe = root.join("mini-moulinette");
     use std::os::unix::process::CommandExt;
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -250,11 +231,8 @@ fn maybe_auto_update() {
         .args(args)
         .env("MINI_MOULINETTE_NO_UPDATE", "1")
         .exec();
-    // exec only returns on failure; grading continues on the old version
 }
 
-/// Locate the bundled test suites. Priority: ./tests (working from a clone),
-/// then $MINI_MOULINETTE_DIR/tests, then ~/.mini-moulinette/tests (curl install).
 fn find_tests_root() -> PathBuf {
     let local = PathBuf::from("tests");
     if local.is_dir() {
@@ -291,6 +269,8 @@ fn run_assignment(assignment: &str, path: &PathBuf, is_strict: bool) -> Result<(
         let padded_strict = pad_str(&strict_txt, 58, Alignment::Center, None);
         println!("{} {} {}", "│".cyan().bold(), padded_strict, "│".cyan().bold());
     }
+    let warn = format!("{}", "⚠ Unofficial tester — never trust a score 100%".yellow());
+    println!("{} {} {}", "│".cyan().bold(), pad_str(&warn, 58, Alignment::Center, None), "│".cyan().bold());
     println!("{}\n", "╰────────────────────────────────────────────────────────────╯".cyan().bold());
 
     let tests_dir = find_tests_root().join(assignment);
@@ -317,7 +297,6 @@ fn run_assignment(assignment: &str, path: &PathBuf, is_strict: bool) -> Result<(
     let max_score = total_exercises * 100;
     let points_per_ex = 100;
     let mut strict_mode_failed = false;
-    // full failure details go here; written to a trace file at the end
     let mut trace = String::new();
 
     for ex in exercises {
@@ -373,19 +352,8 @@ fn run_assignment(assignment: &str, path: &PathBuf, is_strict: bool) -> Result<(
     Ok(())
 }
 
-// ---------------------------------------------------------------------------
-// forbidden functions
-// ---------------------------------------------------------------------------
-
-/// gcc emits calls to these on its own (struct init, array copies...), so a
-/// student can't be failed for them showing up in the symbol table.
 const COMPILER_SYMS: &[&str] = &["memset", "memcpy", "memmove"];
 
-/// Compile each student .c alone and inspect its undefined symbols with nm.
-/// Anything not defined by another student file, not in allowed.txt, not a
-/// compiler-generated helper and not a `_`-prefixed runtime symbol is a
-/// forbidden function. Returns None when the check can't run (compile error,
-/// nm missing) — the normal tests will report those cases themselves.
 fn find_forbidden(sources: &[&PathBuf], allowed: &[String], inc_dirs: &[&PathBuf]) -> Option<Vec<String>> {
     use std::collections::HashSet;
 
@@ -438,8 +406,6 @@ fn find_forbidden(sources: &[&PathBuf], allowed: &[String], inc_dirs: &[&PathBuf
     Some(forbidden)
 }
 
-/// Read allowed.txt (one authorized function per line). None = no file, so
-/// the check is skipped. An existing empty file means nothing is allowed.
 fn read_allowed(test_ex_dir: &PathBuf) -> Option<Vec<String>> {
     let p = test_ex_dir.join("allowed.txt");
     let content = fs::read_to_string(p).ok()?;
@@ -450,8 +416,6 @@ fn read_allowed(test_ex_dir: &PathBuf) -> Option<Vec<String>> {
         .collect())
 }
 
-/// Forbidden-function gate shared by both grading modes. Returns true when
-/// the exercise must be failed (and prints + traces the reason).
 fn forbidden_gate(ex_name: &str, sources: &[&PathBuf], test_ex_dir: &PathBuf,
                   student_ex_dir: &PathBuf, trace: &mut String) -> bool {
     let Some(allowed) = read_allowed(test_ex_dir) else { return false };
@@ -478,7 +442,63 @@ fn forbidden_gate(ex_name: &str, sources: &[&PathBuf], test_ex_dir: &PathBuf,
     }
 }
 
-/// Append one failure block to the trace buffer (full, untruncated).
+fn asan_recheck(test_c: &PathBuf, sources: &[&PathBuf], inc_dirs: &[&PathBuf],
+                workdir: &PathBuf) -> Option<String> {
+    use std::process::Stdio;
+    use std::time::{Duration, Instant};
+
+    let bin = workdir.join(format!(".asan_bin_{}", uuid::Uuid::new_v4()));
+    let mut cmd = Command::new("cc");
+    cmd.arg("-fsanitize=address").arg("-g").arg(test_c).args(sources);
+    for d in inc_dirs {
+        cmd.arg("-I").arg(d);
+    }
+    cmd.arg("-o").arg(&bin);
+    if !cmd.output().map(|o| o.status.success()).unwrap_or(false) {
+        let _ = fs::remove_file(&bin);
+        return None;
+    }
+
+    let err_path = workdir.join(format!("{}.stderr", bin.file_name()?.to_string_lossy()));
+    let child = std::fs::File::create(&err_path).ok().and_then(|f| {
+        Command::new(&bin)
+            .env("ASAN_OPTIONS", "detect_leaks=0")
+            .stdout(Stdio::null())
+            .stderr(Stdio::from(f))
+            .spawn()
+            .ok()
+    });
+    let mut failed = false;
+    if let Some(mut ch) = child {
+        let start = Instant::now();
+        loop {
+            match ch.try_wait() {
+                Ok(Some(st)) => {
+                    failed = !st.success();
+                    break;
+                }
+                Ok(None) => {
+                    if start.elapsed() > Duration::from_secs(2 * TEST_TIMEOUT_SECS) {
+                        let _ = ch.kill();
+                        let _ = ch.wait();
+                        break;
+                    }
+                    std::thread::sleep(Duration::from_millis(5));
+                }
+                Err(_) => break,
+            }
+        }
+    }
+    let _ = fs::remove_file(&bin);
+    let report = String::from_utf8_lossy(&fs::read(&err_path).unwrap_or_default()).to_string();
+    let _ = fs::remove_file(&err_path);
+    if failed && report.contains("AddressSanitizer") {
+        Some(report)
+    } else {
+        None
+    }
+}
+
 fn trace_block(trace: &mut String, location: &str, kind: &str, body: &str) {
     trace.push_str(&"=".repeat(79));
     trace.push('\n');
@@ -496,11 +516,12 @@ struct TestCase {
 
 enum TestResult {
     Passed,
-    FailedOutput(String, String), // expected, actual
+    FailedOutput(String, String),
     Segfault,
     Killed(i32),
     Timeout,
     CompilationError(String),
+    MemoryError(String),
 }
 
 const TEST_TIMEOUT_SECS: u64 = 5;
@@ -578,13 +599,9 @@ fn run_build_check(ex_name: &str, check_script: &PathBuf, student_ex_dir: &PathB
 }
 
 fn run_exercise_parallel(ex_name: &str, test_ex_dir: &PathBuf, student_ex_dir: &PathBuf, trace: &mut String) -> Result<bool> {
-    // Build-check exercises (Makefile, shell scripts, libraries) can't be graded by
-    // compiling test_*.c against a single source. A check.sh does the build/link/run.
     let check_script = test_ex_dir.join("check.sh");
     if check_script.exists() {
         println!(" ▶ {} {}", ex_name.bold(), "(build check)".cyan());
-        // forbidden-function gate on every .c of the rendu (file list is free
-        // in these program exercises, so no extra-file warning here)
         if student_ex_dir.exists() && test_ex_dir.join("allowed.txt").exists() {
             let all_c: Vec<PathBuf> = fs::read_dir(student_ex_dir)?
                 .filter_map(Result::ok)
@@ -626,14 +643,10 @@ fn run_exercise_parallel(ex_name: &str, test_ex_dir: &PathBuf, student_ex_dir: &
         }
     }
 
-    // the subject forbids leaving any extra file in the turn-in directory;
-    // warn (the real moulinette grades 0 for this)
     let mut extras: Vec<String> = fs::read_dir(student_ex_dir)?
         .filter_map(Result::ok)
         .map(|e| e.file_name().to_string_lossy().to_string())
         .filter(|n| !n.starts_with('.') && !required_files.contains(n))
-        // files the moulinette itself provides (e.g. ft_stock_str.h,
-        // C12/ex08's ft_list.h) may legitimately mirror the test dir
         .filter(|n| !test_ex_dir.join(n).exists())
         .collect();
     extras.sort();
@@ -642,7 +655,6 @@ fn run_exercise_parallel(ex_name: &str, test_ex_dir: &PathBuf, student_ex_dir: &
             "⚠".yellow().bold(), extras.join(", ").yellow());
     }
 
-    // forbidden-function gate (allowed.txt in the test dir drives it)
     {
         let srcs: Vec<&PathBuf> = student_files
             .iter()
@@ -653,7 +665,6 @@ fn run_exercise_parallel(ex_name: &str, test_ex_dir: &PathBuf, student_ex_dir: &
         }
     }
 
-    // Find all tests
     let mut test_cases = Vec::new();
     for entry in fs::read_dir(test_ex_dir)? {
         let entry = entry?;
@@ -683,7 +694,6 @@ fn run_exercise_parallel(ex_name: &str, test_ex_dir: &PathBuf, student_ex_dir: &
     let failed_count = AtomicUsize::new(0);
     let segfault_count = AtomicUsize::new(0);
 
-    // Only .c files are compiled; headers (.h) are made available via -I instead.
     let source_files: Vec<&PathBuf> = student_files
         .iter()
         .filter(|p| p.extension().map_or(false, |e| e == "c"))
@@ -713,8 +723,6 @@ fn run_exercise_parallel(ex_name: &str, test_ex_dir: &PathBuf, student_ex_dir: &
             Ok(_) => {
                 use std::process::Stdio;
                 use std::time::{Duration, Instant};
-                // Redirect stdout to a file (not a pipe) so a program that writes a
-                // lot cannot deadlock while we poll, and we can still read it after kill.
                 let stdout_path = student_ex_dir.join(format!("{}.stdout", bin_name));
                 let child = std::fs::File::create(&stdout_path).ok().and_then(|f| {
                     Command::new(&output_bin)
@@ -768,6 +776,17 @@ fn run_exercise_parallel(ex_name: &str, test_ex_dir: &PathBuf, student_ex_dir: &
             Err(e) => {
                 TestResult::CompilationError(e.to_string())
             }
+        };
+
+        let res = match res {
+            TestResult::Passed => {
+                let incs = [student_ex_dir, test_ex_dir];
+                match asan_recheck(&tc.c_file, &source_files, &incs, student_ex_dir) {
+                    Some(report) => TestResult::MemoryError(report),
+                    None => TestResult::Passed,
+                }
+            }
+            other => other,
         };
 
         match res {
@@ -855,6 +874,20 @@ fn run_exercise_parallel(ex_name: &str, test_ex_dir: &PathBuf, student_ex_dir: &
                         println!("        ╰── (Full error log in the trace file)\n");
                     }
                     trace_block(trace, &loc, "compilation / execution error", err);
+                    printed_errors += 1;
+                }
+                TestResult::MemoryError(report) => {
+                    if print_it {
+                        println!("        ╭── [{}] {}", tc_name.yellow(), "Memory error (AddressSanitizer)".bold().red());
+                        let summary = report.lines()
+                            .find(|l| l.contains("SUMMARY: AddressSanitizer"))
+                            .unwrap_or("invalid memory access detected");
+                        println!("        │  {}", summary.dimmed());
+                        println!("        ╰── (Full ASan report in the trace file)\n");
+                    }
+                    let src = fs::read_to_string(&tc.c_file).unwrap_or_default();
+                    trace_block(trace, &loc, "memory error (AddressSanitizer)",
+                        &format!("{}\n--- test main ---\n{}", report, src));
                     printed_errors += 1;
                 }
                 TestResult::Passed => {}
