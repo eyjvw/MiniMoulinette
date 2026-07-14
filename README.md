@@ -1,6 +1,10 @@
 # MiniMoulinette
 
-🇫🇷 [Version française](README.fr.md)
+**[English](#english)** · **[Français](#français)**
+
+---
+
+## English
 
 Parallel test runner for the 42 C Piscine exercises. For each exercise it
 compiles a test `main` together with the student's file (`cc -Wall -Wextra
@@ -8,7 +12,7 @@ compiles a test `main` together with the student's file (`cc -Wall -Wextra
 output. Build-oriented modules (Makefile, scripts) are graded by a dedicated
 `check.sh`.
 
-## Quick install (no Rust needed)
+### Quick install (no Rust needed)
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/eyjvw/MiniMoulinette/main/install.sh | sh
@@ -26,14 +30,9 @@ cd ~/piscine/C07        # directory containing ex00/, ex01/, ...
 mini-moulinette C07
 ```
 
-## Building from source
+### Building from source
 
-### Requirements
-
-- `cc` (gcc/clang)
-- Rust + Cargo (`curl https://sh.rustup.rs -sSf | sh`)
-
-### Build
+Requirements: `cc` (gcc/clang), Rust + Cargo (`curl https://sh.rustup.rs -sSf | sh`).
 
 ```sh
 cargo build --release
@@ -41,27 +40,21 @@ cargo build --release
 
 The binary is produced at `target/release/MiniMoulinette`.
 
-## Usage
+### Usage
 
 ```sh
 # grade a module in the current directory
-./target/release/MiniMoulinette C07
+mini-moulinette C07
 
 # explicit form with a student directory + strict mode
-./target/release/MiniMoulinette run C07 --path sandbox/C07 --strict
+mini-moulinette run C07 --path sandbox/C07 --strict
 ```
 
 - `--path <dir>`: directory containing the submissions (`exNN/ft_xxx.c`).
   Default: `.`
 - `--strict`: stop grading as soon as one exercise fails.
 
-Example against the reference solutions:
-
-```sh
-./target/release/MiniMoulinette run C08 --path sandbox/C08
-```
-
-## Coverage
+### Coverage
 
 | Module | Content | Tested |
 |--------|---------|--------|
@@ -81,7 +74,7 @@ C12/C13 note: with gcc ≥ 15 (C23 by default) the subject's historical
 `sandbox/` holds one reference solution per exercise (used to generate the
 `.out` files and to check for crashes).
 
-## Regenerating the tests
+### Regenerating the tests
 
 The test cases (`tests/<module>/<ex>/test_*.c` + `.out`) are produced by:
 
@@ -92,7 +85,7 @@ python3 gen_moulinette.py
 Each `.out` is captured by compiling the test against the reference solution
 in `sandbox/`, so the expected output reflects a correct implementation.
 
-## Test modes
+### Test modes
 
 - **Stdout diff** (default): `test_*.c` + `.out` in the exercise directory;
   `files.txt` lists the file(s) to submit (several lines allowed).
@@ -102,3 +95,96 @@ in `sandbox/`, so the expected output reflects a correct implementation.
   (do-op).
 
 Per-test execution timeout: 5 s (infinite-loop guard).
+
+---
+
+## Français
+
+Testeur parallèle pour les exercices de la Piscine C 42. Pour chaque exercice,
+il compile un `main` de test avec le fichier de l'étudiant (`cc -Wall -Wextra
+-Werror`), exécute le binaire et compare la sortie standard à la sortie
+attendue. Les modules de build (Makefile, scripts) sont validés par un
+`check.sh` dédié.
+
+### Installation rapide (sans Rust)
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/eyjvw/MiniMoulinette/main/install.sh | sh
+```
+
+Télécharge le binaire précompilé (Linux x86_64/arm64, macOS Intel/Apple
+Silicon) + les suites de tests dans `~/.mini-moulinette`, crée la commande
+`mini-moulinette` dans `~/.local/bin` et ajoute ce dossier au `PATH` dans
+`~/.zshrc` / `~/.bashrc` si nécessaire. Seul `cc` est requis pour lancer les
+tests. S'il n'existe pas de binaire pour la plateforme, le script recompile
+avec cargo si disponible.
+
+```sh
+cd ~/piscine/C07        # dossier contenant ex00/, ex01/, ...
+mini-moulinette C07
+```
+
+### Build depuis les sources
+
+Prérequis : `cc` (gcc/clang), Rust + Cargo (`curl https://sh.rustup.rs -sSf | sh`).
+
+```sh
+cargo build --release
+```
+
+Le binaire est produit dans `target/release/MiniMoulinette`.
+
+### Lancer
+
+```sh
+# tester un module dans le dossier courant
+mini-moulinette C07
+
+# forme explicite avec dossier étudiant + mode strict
+mini-moulinette run C07 --path sandbox/C07 --strict
+```
+
+- `--path <dir>` : dossier contenant les rendus (`exNN/ft_xxx.c`). Défaut : `.`
+- `--strict` : arrête la notation dès qu'un exercice échoue.
+
+### Couverture
+
+| Module | Contenu | Testé |
+|--------|---------|-------|
+| C00–C05, C07 | fonctions | ✅ diff stdout |
+| C08 | headers / macros / structs | ✅ (`.h` via `-I`) |
+| C09 | ft_split + libft_creator.sh + Makefile | ✅ (dont build-check) |
+| C10 | programmes (ft_display_file, ft_cat, ft_tail, ft_hexdump) | ✅ build-check, diff vs `cat`/`tail`/`hexdump` système |
+| C11 | pointeurs de fonction + do-op | ✅ (do-op via build-check) |
+| C12 | listes chaînées (`ft_list.h` étudiant via `-I`) | ✅ |
+| C13 | arbres binaires (`ft_btree.h` étudiant via `-I`) | ✅ |
+| C06 | arguments (main étudiant) | ⚠️ non testé |
+
+Note C12/C13 : compilés avec gcc ≥ 15 (C23 par défaut), les prototypes
+historiques `int (*cmp)()` du sujet ne compilent plus — les tests utilisent
+`int (*cmp)(void *, void *)`. Le rendu étudiant doit faire pareil.
+
+`sandbox/` contient une solution de référence par exercice (sert à générer les
+`.out` et à vérifier l'absence de crash).
+
+### Régénérer les tests
+
+Les cas de test (`tests/<module>/<ex>/test_*.c` + `.out`) sont produits par :
+
+```sh
+python3 gen_moulinette.py
+```
+
+Chaque `.out` est capturé en compilant le test contre la solution de référence
+de `sandbox/`, donc la sortie attendue reflète une implémentation correcte.
+
+### Modes de test
+
+- **Diff stdout** (défaut) : `test_*.c` + `.out` dans le dossier de l'exercice ;
+  `files.txt` liste le(s) fichier(s) à rendre (plusieurs lignes possibles).
+- **Build-check** : si le dossier de test contient `check.sh`, le harness
+  l'exécute (`bash check.sh <dir_étudiant>`, timeout 30 s) et note sur son code
+  de sortie. Utilisé pour C09 ex00 (script), ex01 (Makefile), tout C10 et
+  C11 ex05 (do-op).
+
+Timeout d'exécution par test : 5 s (anti-boucle infinie).
