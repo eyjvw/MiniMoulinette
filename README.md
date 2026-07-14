@@ -39,6 +39,15 @@ updates itself (then re-runs your command) when a newer version exists.
 - `MINI_MOULINETTE_NO_UPDATE=1` — disable the automatic check
 - Dev builds (run from `target/release/`) are never auto-updated.
 
+### Uninstall
+
+```sh
+rm -rf ~/.mini-moulinette ~/.local/bin/mini-moulinette
+```
+
+Then remove the two lines added by the installer (`# added by mini-moulinette
+installer` + the `export PATH=...` below it) from `~/.zshrc` / `~/.bashrc`.
+
 ### Building from source
 
 Requirements: `cc` (gcc/clang), Rust + Cargo (`curl https://sh.rustup.rs -sSf | sh`).
@@ -142,6 +151,16 @@ plus récente existe.
 - `mini-moulinette update` — forcer la mise à jour immédiatement
 - `MINI_MOULINETTE_NO_UPDATE=1` — désactiver la vérification automatique
 - Les builds de dev (lancés depuis `target/release/`) ne sont jamais mis à jour.
+
+### Désinstaller
+
+```sh
+rm -rf ~/.mini-moulinette ~/.local/bin/mini-moulinette
+```
+
+Puis retire les deux lignes ajoutées par l'installeur (`# added by
+mini-moulinette installer` + le `export PATH=...` en dessous) de `~/.zshrc` /
+`~/.bashrc`.
 
 ### Build depuis les sources
 
