@@ -9,8 +9,18 @@ use std::process::Command;
 use std::os::unix::process::ExitStatusExt;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use indicatif::{ProgressBar, ProgressStyle};
+use std::sync::OnceLock;
+
+mod translations;
+use translations::{fill, ui, Lang, Ui};
 
 const REPO: &str = "eyjvw/MiniMoulinette";
+
+static LANG: OnceLock<Lang> = OnceLock::new();
+
+fn t() -> &'static Ui {
+    ui(*LANG.get().unwrap_or(&Lang::En))
+}
 
 #[derive(Parser, Debug)]
 #[command(name = "mini-moulinette",
@@ -20,6 +30,15 @@ const REPO: &str = "eyjvw/MiniMoulinette";
 struct Cli {
     #[arg(name = "ASSIGNMENT")]
     assignment: Option<String>,
+
+    #[arg(short, long)]
+    path: Option<PathBuf>,
+
+    #[arg(short, long)]
+    strict: bool,
+
+    #[arg(short, long, global = true)]
+    lang: Option<String>,
 
     #[command(subcommand)]
     command: Option<Commands>,
@@ -37,6 +56,10 @@ enum Commands {
         strict: bool,
     },
     #[command(disable_help_flag = true)]
+    Lang {
+        lang: String,
+    },
+    #[command(disable_help_flag = true)]
     Update,
     #[command(disable_help_flag = true)]
     Uninstall,
@@ -46,48 +69,93 @@ enum Commands {
     Help,
 }
 
+fn config_lang_path() -> Option<PathBuf> {
+    let home = std::env::var("HOME").ok()?;
+    Some(PathBuf::from(home).join(".mini-moulinette").join("lang"))
+}
+
+fn resolve_lang(flag: &Option<String>) -> Lang {
+    if let Some(l) = flag.as_deref().and_then(Lang::parse) {
+        return l;
+    }
+    if let Some(l) = std::env::var("MINI_MOULINETTE_LANG").ok().as_deref().and_then(Lang::parse) {
+        return l;
+    }
+    if let Some(l) = config_lang_path()
+        .and_then(|p| fs::read_to_string(p).ok())
+        .as_deref()
+        .map(str::trim)
+        .and_then(Lang::parse)
+    {
+        return l;
+    }
+    if let Some(l) = std::env::var("LANG").ok().and_then(|v| Lang::parse(&v[..2.min(v.len())])) {
+        return l;
+    }
+    Lang::En
+}
+
+fn save_lang(lang: Lang) -> Result<()> {
+    let p = config_lang_path().ok_or_else(|| anyhow::anyhow!("no HOME"))?;
+    if let Some(dir) = p.parent() {
+        fs::create_dir_all(dir)?;
+    }
+    fs::write(&p, lang.code())?;
+    Ok(())
+}
+
 fn print_help() {
     let v = env!("CARGO_PKG_VERSION");
+    let tr = t();
     println!();
     println!("{}", "╭────────────────────────────────────────────────────────────╮".cyan().bold());
     let title = format!("MiniMoulinette v{}", v);
     println!("{} {} {}", "│".cyan().bold(),
         pad_str(&title, 58, Alignment::Center, None).bold(), "│".cyan().bold());
-    let sub = "Testeur local pour la Piscine C (C00 → C13)";
     println!("{} {} {}", "│".cyan().bold(),
-        pad_str(sub, 58, Alignment::Center, None), "│".cyan().bold());
+        pad_str(tr.subtitle, 58, Alignment::Center, None), "│".cyan().bold());
     println!("{}", "╰────────────────────────────────────────────────────────────╯".cyan().bold());
     println!();
     let entry = |cmd: &str, w: usize, desc: &str| {
         println!("  {}  {}", pad_str(cmd, w, Alignment::Left, None).bold(), desc.dimmed());
     };
-    println!("{}", "USAGE".bold().yellow());
-    entry("mini-moulinette <MODULE>", 40, "note le module dans le dossier courant");
-    entry("mini-moulinette run <MODULE> [options]", 40, "forme explicite");
+    println!("{}", tr.usage.bold().yellow());
+    entry("mini-moulinette", 40, tr.usage_auto);
+    entry("mini-moulinette <MODULE>", 40, tr.usage_module);
+    entry("mini-moulinette run <MODULE> [options]", 40, tr.usage_run);
     println!();
-    println!("{}", "COMMANDES".bold().yellow());
-    entry("run <MODULE>", 18, "note un module (ex : C07)");
-    entry("update", 18, "met à jour vers la dernière version");
-    entry("uninstall", 18, "désinstalle complètement mini-moulinette");
-    entry("version", 18, "affiche la version installée");
-    entry("help", 18, "affiche cette aide");
+    println!("{}", tr.commands.bold().yellow());
+    entry("run <MODULE>", 18, tr.cmd_run);
+    entry("lang <en|fr|es>", 18, tr.cmd_lang);
+    entry("update", 18, tr.cmd_update);
+    entry("uninstall", 18, tr.cmd_uninstall);
+    entry("version", 18, tr.cmd_version);
+    entry("help", 18, tr.cmd_help);
     println!();
-    println!("{}", "OPTIONS (run)".bold().yellow());
-    entry("-p, --path <dir>", 18, "dossier du rendu (défaut : dossier courant)");
-    entry("-s, --strict", 18, "s'arrête au premier exercice raté");
+    println!("{}", tr.options.bold().yellow());
+    entry("-p, --path <dir>", 18, tr.opt_path);
+    entry("-s, --strict", 18, tr.opt_strict);
+    entry("-l, --lang <code>", 18, tr.opt_lang);
     println!();
-    println!("{}", "EXEMPLES".bold().yellow());
-    println!("  {}", "cd ~/piscine/C07 && mini-moulinette C07".dimmed());
-    println!("  {}", "mini-moulinette run C07 --path ~/rendu/C07 --strict".dimmed());
+    println!("{}", tr.examples.bold().yellow());
+    println!("  {}", "cd ~/piscine/C07 && mini-moulinette".dimmed());
+    println!("  {}", "mini-moulinette C07 --strict".dimmed());
+    println!("  {}", "mini-moulinette run C07 --path ~/rendu/C07 -l en".dimmed());
     println!();
-    println!("{}", "ENV".bold().yellow());
-    println!("  {}   désactive la vérification de mise à jour", "MINI_MOULINETTE_NO_UPDATE=1".bold());
+    println!("{}", tr.env.bold().yellow());
+    println!("  {}   {}", "MINI_MOULINETTE_NO_UPDATE=1".bold(), tr.env_no_update.dimmed());
+    println!("  {}     {}", "MINI_MOULINETTE_LANG=es".bold(), tr.env_lang.dimmed());
     println!();
 }
 
 fn main() -> Result<()> {
     let raw: Vec<String> = std::env::args().skip(1).collect();
     if raw.iter().any(|a| a == "-h" || a == "--help") {
+        let flag = raw.iter()
+            .position(|a| a == "-l" || a == "--lang")
+            .and_then(|i| raw.get(i + 1))
+            .cloned();
+        let _ = LANG.set(resolve_lang(&flag));
         print_help();
         return Ok(());
     }
@@ -97,10 +165,24 @@ fn main() -> Result<()> {
     }
 
     let cli = Cli::parse();
+    let _ = LANG.set(resolve_lang(&cli.lang));
+
     match &cli.command {
         Some(Commands::Run { assignment, path, strict }) => {
             maybe_auto_update();
             run_assignment(assignment, path, *strict)?
+        }
+        Some(Commands::Lang { lang }) => {
+            match Lang::parse(lang) {
+                Some(l) => {
+                    save_lang(l)?;
+                    println!("{} {}", "✓".green().bold(), fill(ui(l).lang_set, &[l.code()]).bold());
+                }
+                None => {
+                    println!("{} {}", "✗".red().bold(), fill(t().lang_unknown, &[lang]));
+                    std::process::exit(1);
+                }
+            }
         }
         Some(Commands::Update) => run_update(true)?,
         Some(Commands::Uninstall) => {
@@ -115,15 +197,81 @@ fn main() -> Result<()> {
         Some(Commands::Version) => println!("mini-moulinette {}", env!("CARGO_PKG_VERSION")),
         Some(Commands::Help) => print_help(),
         None => {
+            let path = cli.path.clone().unwrap_or_else(|| PathBuf::from("."));
             if let Some(assignment) = &cli.assignment {
                 maybe_auto_update();
-                run_assignment(assignment, &PathBuf::from("."), false)?;
+                run_assignment(assignment, &path, cli.strict)?;
+            } else if let Some(detected) = detect_module(&find_tests_root(), &path) {
+                println!("\n{} {}", "◎".cyan().bold(),
+                    fill(t().detected, &[&detected]).bold());
+                maybe_auto_update();
+                run_assignment(&detected, &path, cli.strict)?;
             } else {
                 print_help();
             }
         }
     }
     Ok(())
+}
+
+fn detect_module(tests_root: &PathBuf, path: &PathBuf) -> Option<String> {
+    let base = path.canonicalize().ok()?
+        .file_name()?
+        .to_string_lossy()
+        .to_uppercase();
+    if base.len() == 3
+        && base.starts_with('C')
+        && base[1..].chars().all(|c| c.is_ascii_digit())
+        && tests_root.join(&base).is_dir()
+    {
+        return Some(base);
+    }
+
+    let mut best: Option<(usize, String)> = None;
+    let mut tie = false;
+    for entry in fs::read_dir(tests_root).ok()? {
+        let Ok(entry) = entry else { continue };
+        let module_dir = entry.path();
+        if !module_dir.is_dir() {
+            continue;
+        }
+        let module = entry.file_name().to_string_lossy().to_string();
+        let mut score = 0usize;
+        let Ok(exercises) = fs::read_dir(&module_dir) else { continue };
+        for ex in exercises.filter_map(Result::ok) {
+            let ex_dir = ex.path();
+            if !ex_dir.is_dir() {
+                continue;
+            }
+            let student_ex = path.join(ex.file_name());
+            if !student_ex.is_dir() {
+                continue;
+            }
+            if let Ok(content) = fs::read_to_string(ex_dir.join("files.txt")) {
+                score += content
+                    .lines()
+                    .map(str::trim)
+                    .filter(|l| !l.is_empty())
+                    .filter(|f| student_ex.join(f).exists())
+                    .count();
+            } else {
+                score += 1;
+            }
+        }
+        match &best {
+            Some((b, _)) if score > *b => {
+                best = Some((score, module));
+                tie = false;
+            }
+            Some((b, _)) if score == *b => tie = true,
+            None => best = Some((score, module)),
+            _ => {}
+        }
+    }
+    match best {
+        Some((score, module)) if score > 0 && !tie => Some(module),
+        _ => None,
+    }
 }
 
 fn install_root() -> Option<PathBuf> {
@@ -199,30 +347,31 @@ fn maybe_auto_update() {
     }
 
     use std::io::{IsTerminal, Write};
+    let update_cmd = "mini-moulinette update".bold().to_string();
     if !std::io::stdin().is_terminal() {
-        println!("{} v{} available (current v{}) — run {} to upgrade\n",
-            "⟳".cyan().bold(), latest, current, "mini-moulinette update".bold());
+        println!("{} {}\n", "⟳".cyan().bold(),
+            fill(t().update_available, &[&latest, current, &update_cmd]));
         return;
     }
-    print!("{} v{} available (current v{}). Update now? [Y/n] ",
-        "⟳".cyan().bold(), latest, current);
+    print!("{} {}", "⟳".cyan().bold(),
+        fill(t().update_prompt, &[&latest, current]));
     let _ = std::io::stdout().flush();
     let mut answer = String::new();
     let _ = std::io::stdin().read_line(&mut answer);
     let answer = answer.trim().to_lowercase();
-    if !(answer.is_empty() || answer == "y" || answer == "yes" || answer == "o" || answer == "oui") {
-        println!("{} skipped — run {} whenever you want\n",
-            "▸".dimmed(), "mini-moulinette update".bold());
+    if !(answer.is_empty() || answer == "y" || answer == "yes" || answer == "o" || answer == "oui" || answer == "s" || answer == "si" || answer == "sí") {
+        println!("{} {}\n", "▸".dimmed(),
+            fill(t().update_skipped, &[&update_cmd]));
         return;
     }
 
-    println!("{} updating to v{}...", "⟳".cyan().bold(), latest);
+    println!("{} {}", "⟳".cyan().bold(), fill(t().updating, &[&latest]));
     if run_update(false).is_err() {
-        println!("{} update failed, run {} manually\n",
-            "⚠".yellow(), "mini-moulinette update".bold());
+        println!("{} {}\n", "⚠".yellow(),
+            fill(t().update_failed, &[&update_cmd]));
         return;
     }
-    println!("{} updated to v{}\n", "✓".green().bold(), latest);
+    println!("{} {}\n", "✓".green().bold(), fill(t().updated, &[&latest]));
 
     let exe = root.join("mini-moulinette");
     use std::os::unix::process::CommandExt;
@@ -256,27 +405,27 @@ fn find_tests_root() -> PathBuf {
 fn run_assignment(assignment: &str, path: &PathBuf, is_strict: bool) -> Result<()> {
     println!("\n{}", "╭────────────────────────────────────────────────────────────╮".cyan().bold());
     
-    let title = format!("TESTING ASSIGNMENT: {}", assignment);
+    let title = fill(t().testing, &[assignment]);
     let padded_title = pad_str(&title, 58, Alignment::Center, None);
     println!("{} {} {}", "│".cyan().bold(), padded_title.bold(), "│".cyan().bold());
-    
-    let subtitle = format!("Directory: {}", path.display());
+
+    let subtitle = fill(t().directory, &[&path.display().to_string()]);
     let padded_subtitle = pad_str(&subtitle, 58, Alignment::Center, None);
     println!("{} {} {}", "│".cyan().bold(), padded_subtitle, "│".cyan().bold());
-    
+
     if is_strict {
-        let strict_txt = format!("{}", "STRICT MODE ENABLED".red().bold());
+        let strict_txt = format!("{}", t().strict_on.red().bold());
         let padded_strict = pad_str(&strict_txt, 58, Alignment::Center, None);
         println!("{} {} {}", "│".cyan().bold(), padded_strict, "│".cyan().bold());
     }
-    let warn = format!("{}", "⚠ Unofficial tester — never trust a score 100%".yellow());
+    let warn = format!("{}", t().disclaimer.yellow());
     println!("{} {} {}", "│".cyan().bold(), pad_str(&warn, 58, Alignment::Center, None), "│".cyan().bold());
     println!("{}\n", "╰────────────────────────────────────────────────────────────╯".cyan().bold());
 
     let tests_dir = find_tests_root().join(assignment);
-    
+
     if !tests_dir.exists() {
-        println!("{} No tests found for {}", "✗".red(), assignment);
+        println!("{} {}", "✗".red(), fill(t().no_tests, &[assignment]));
         return Ok(());
     }
 
@@ -289,7 +438,7 @@ fn run_assignment(assignment: &str, path: &PathBuf, is_strict: bool) -> Result<(
 
     let total_exercises = exercises.len();
     if total_exercises == 0 {
-        println!("{} No exercises found for {}", "✗".red(), assignment);
+        println!("{} {}", "✗".red(), fill(t().no_exercises, &[assignment]));
         return Ok(());
     }
 
@@ -301,8 +450,8 @@ fn run_assignment(assignment: &str, path: &PathBuf, is_strict: bool) -> Result<(
 
     for ex in exercises {
         if is_strict && strict_mode_failed {
-            println!(" ▶ {} {}", ex.bold(), "[SKIPPED]".yellow().bold());
-            println!("   ╰── {}\n", "Strict mode triggered: previous exercise failed".yellow());
+            println!(" ▶ {} {}", ex.bold(), t().skipped.yellow().bold());
+            println!("   ╰── {}\n", t().strict_reason.yellow());
             continue;
         }
 
@@ -321,16 +470,15 @@ fn run_assignment(assignment: &str, path: &PathBuf, is_strict: bool) -> Result<(
     let grade = (score as f64 / max_score as f64) * 100.0;
     println!("{}", "╭────────────────────────────────────────────────────────────╮".magenta().bold());
     
-    if grade >= 80.0 {
-        let sc = format!("{}", format!("FINAL SCORE: {}/100", grade.round()).green().bold());
-        println!("{} {} {}", "│".magenta().bold(), pad_str(&sc, 58, Alignment::Center, None), "│".magenta().bold());
+    let score_txt = fill(t().final_score, &[&grade.round().to_string()]);
+    let sc = if grade >= 80.0 {
+        format!("{}", score_txt.green().bold())
     } else if grade >= 50.0 {
-        let sc = format!("{}", format!("FINAL SCORE: {}/100", grade.round()).yellow().bold());
-        println!("{} {} {}", "│".magenta().bold(), pad_str(&sc, 58, Alignment::Center, None), "│".magenta().bold());
+        format!("{}", score_txt.yellow().bold())
     } else {
-        let sc = format!("{}", format!("FINAL SCORE: {}/100", grade.round()).red().bold());
-        println!("{} {} {}", "│".magenta().bold(), pad_str(&sc, 58, Alignment::Center, None), "│".magenta().bold());
-    }
+        format!("{}", score_txt.red().bold())
+    };
+    println!("{} {} {}", "│".magenta().bold(), pad_str(&sc, 58, Alignment::Center, None), "│".magenta().bold());
     
     println!("{}\n", "╰────────────────────────────────────────────────────────────╯".magenta().bold());
 
@@ -344,8 +492,8 @@ fn run_assignment(assignment: &str, path: &PathBuf, is_strict: bool) -> Result<(
             "mini-moulinette v{} — {} — dir: {}\nscore: {}/100\n\n",
             env!("CARGO_PKG_VERSION"), assignment, path.display(), grade.round());
         if fs::write(&trace_path, header + &trace).is_ok() {
-            println!("{} Full error trace: {}\n",
-                "📄".bold(), trace_path.display().to_string().cyan());
+            println!("{} {}\n", "📄".bold(),
+                fill(t().full_trace, &[&trace_path.display().to_string().cyan().to_string()]));
         }
     }
 
@@ -425,8 +573,8 @@ fn forbidden_gate(ex_name: &str, sources: &[&PathBuf], test_ex_dir: &PathBuf,
     let inc_dirs = [student_ex_dir, test_ex_dir];
     match find_forbidden(sources, &allowed, &inc_dirs) {
         Some(forb) if !forb.is_empty() => {
-            println!("   ╰── {} forbidden function(s): {}\n",
-                "✗".red().bold(), forb.join(", ").red().bold());
+            println!("   ╰── {} {}\n", "✗".red().bold(),
+                fill(t().forbidden, &[&forb.join(", ").red().bold().to_string()]));
             let allowed_str = if allowed.is_empty() {
                 "(none)".to_string()
             } else {
@@ -533,7 +681,7 @@ fn run_build_check(ex_name: &str, check_script: &PathBuf, student_ex_dir: &PathB
     use std::time::{Duration, Instant};
 
     if !student_ex_dir.exists() {
-        println!("   ╰── {} directory missing\n", "✗".red());
+        println!("   ╰── {} {}\n", "✗".red(), t().dir_missing);
         return Ok(false);
     }
 
@@ -550,7 +698,7 @@ fn run_build_check(ex_name: &str, check_script: &PathBuf, student_ex_dir: &PathB
 
     let (passed, timed_out) = match child {
         None => {
-            println!("   ╰── {} could not launch check.sh\n", "✗".red());
+            println!("   ╰── {} {}\n", "✗".red(), t().launch_fail);
             let _ = fs::remove_file(&out_path);
             return Ok(false);
         }
@@ -577,16 +725,17 @@ fn run_build_check(ex_name: &str, check_script: &PathBuf, student_ex_dir: &PathB
     let _ = fs::remove_file(&out_path);
 
     if passed {
-        let msg = output.lines().last().unwrap_or("build check passed");
+        let msg = output.lines().last().unwrap_or(t().build_passed);
         println!("   ╰── {} {}\n", "✓".green().bold(), msg);
         Ok(true)
     } else {
         if timed_out {
-            println!("   ╰── {} build check timed out after {}s\n", "✗".red().bold(), BUILD_TIMEOUT_SECS);
+            println!("   ╰── {} {}\n", "✗".red().bold(),
+                fill(t().build_timeout, &[&BUILD_TIMEOUT_SECS.to_string()]));
             trace_block(trace, &format!("{} (build check)", ex_name),
                 &format!("timed out after {}s", BUILD_TIMEOUT_SECS), &output);
         } else {
-            println!("   ╰── {} build check failed", "✗".red().bold());
+            println!("   ╰── {} {}", "✗".red().bold(), t().build_failed);
             for line in output.lines().take(6) {
                 println!("        {}", line.dimmed());
             }
@@ -601,7 +750,7 @@ fn run_build_check(ex_name: &str, check_script: &PathBuf, student_ex_dir: &PathB
 fn run_exercise_parallel(ex_name: &str, test_ex_dir: &PathBuf, student_ex_dir: &PathBuf, trace: &mut String) -> Result<bool> {
     let check_script = test_ex_dir.join("check.sh");
     if check_script.exists() {
-        println!(" ▶ {} {}", ex_name.bold(), "(build check)".cyan());
+        println!(" ▶ {} {}", ex_name.bold(), t().build_check.cyan());
         if student_ex_dir.exists() && test_ex_dir.join("allowed.txt").exists() {
             let all_c: Vec<PathBuf> = fs::read_dir(student_ex_dir)?
                 .filter_map(Result::ok)
@@ -630,14 +779,14 @@ fn run_exercise_parallel(ex_name: &str, test_ex_dir: &PathBuf, student_ex_dir: &
     println!(" ▶ {} {}", ex_name.bold(), format!("({})", required_files.join(", ")).cyan());
 
     if !student_ex_dir.exists() {
-        println!("   ╰── {} directory missing\n", "✗".red());
+        println!("   ╰── {} {}\n", "✗".red(), t().dir_missing);
         return Ok(false);
     }
 
     let student_files: Vec<PathBuf> = required_files.iter().map(|f| student_ex_dir.join(f)).collect();
     for (req, sf) in required_files.iter().zip(student_files.iter()) {
         if !sf.exists() {
-            println!("   ╰── {} file not found: {}", "✗".red(), req);
+            println!("   ╰── {} {}", "✗".red(), fill(t().file_not_found, &[req]));
             println!();
             return Ok(false);
         }
@@ -651,8 +800,8 @@ fn run_exercise_parallel(ex_name: &str, test_ex_dir: &PathBuf, student_ex_dir: &
         .collect();
     extras.sort();
     if !extras.is_empty() {
-        println!("   {} extra file(s) in the turn-in dir (real moulinette grades 0): {}",
-            "⚠".yellow().bold(), extras.join(", ").yellow());
+        println!("   {} {}", "⚠".yellow().bold(),
+            fill(t().extra_files, &[&extras.join(", ").yellow().to_string()]));
     }
 
     {
@@ -681,7 +830,7 @@ fn run_exercise_parallel(ex_name: &str, test_ex_dir: &PathBuf, student_ex_dir: &
     }
 
     if test_cases.is_empty() {
-        println!("   ╰── {} No valid test cases (test_*.c / .out) found\n", "⚠".yellow());
+        println!("   ╰── {} {}\n", "⚠".yellow(), t().no_test_cases);
         return Ok(false);
     }
 
@@ -807,9 +956,10 @@ fn run_exercise_parallel(ex_name: &str, test_ex_dir: &PathBuf, student_ex_dir: &
     let total = test_cases.len();
 
     if p == total {
-        println!("   ╰── {} {}/{} tests passed\n", "✓".green().bold(), p, total);
+        println!("   ╰── {} {}/{} {}\n", "✓".green().bold(), p, total, t().tests_passed);
     } else {
-        println!("   ╰── {} {}/{} tests passed | {} failed | {} segfault(s)", "✗".red().bold(), p, total, f, s);
+        println!("   ╰── {} {}/{} {} | {} {} | {} {}", "✗".red().bold(),
+            p, total, t().tests_passed, f, t().failed_word, s, t().segfault_word);
         
         let mut printed_errors = 0;
         let mut truncated_notice = false;
@@ -818,14 +968,14 @@ fn run_exercise_parallel(ex_name: &str, test_ex_dir: &PathBuf, student_ex_dir: &
             let loc = format!("{}: {}", ex_name, tc_name);
             let print_it = printed_errors < 3;
             if !print_it && !truncated_notice && !matches!(res, TestResult::Passed) {
-                println!("        ... and more errors. (Full details in the trace file)");
+                println!("        {}", t().more_errors);
                 truncated_notice = true;
             }
             match res {
                 TestResult::Segfault => {
                     if print_it {
-                        println!("        ╭── [{}] {}", tc_name.yellow(), "Segfault (Signal 11)".bold().red());
-                        println!("        ╰── The program crashed attempting to access invalid memory.\n");
+                        println!("        ╭── [{}] {}", tc_name.yellow(), t().segfault_title.bold().red());
+                        println!("        ╰── {}\n", t().segfault_desc);
                     }
                     let src = fs::read_to_string(&tc.c_file).unwrap_or_default();
                     trace_block(trace, &loc, "Segfault (signal 11)",
@@ -834,8 +984,8 @@ fn run_exercise_parallel(ex_name: &str, test_ex_dir: &PathBuf, student_ex_dir: &
                 }
                 TestResult::Killed(sig) => {
                     if print_it {
-                        println!("        ╭── [{}] {}", tc_name.yellow(), "Killed by signal".bold().red());
-                        println!("        ╰── Process terminated via signal {}\n", sig);
+                        println!("        ╭── [{}] {}", tc_name.yellow(), t().killed_title.bold().red());
+                        println!("        ╰── {}\n", fill(t().killed_desc, &[&sig.to_string()]));
                     }
                     let src = fs::read_to_string(&tc.c_file).unwrap_or_default();
                     trace_block(trace, &loc, &format!("killed by signal {}", sig),
@@ -844,8 +994,8 @@ fn run_exercise_parallel(ex_name: &str, test_ex_dir: &PathBuf, student_ex_dir: &
                 }
                 TestResult::Timeout => {
                     if print_it {
-                        println!("        ╭── [{}] {}", tc_name.yellow(), "Timeout".bold().red());
-                        println!("        ╰── The program ran longer than {}s (possible infinite loop).\n", TEST_TIMEOUT_SECS);
+                        println!("        ╭── [{}] {}", tc_name.yellow(), t().timeout_title.bold().red());
+                        println!("        ╰── {}\n", fill(t().timeout_desc, &[&TEST_TIMEOUT_SECS.to_string()]));
                     }
                     let src = fs::read_to_string(&tc.c_file).unwrap_or_default();
                     trace_block(trace, &loc,
@@ -855,9 +1005,9 @@ fn run_exercise_parallel(ex_name: &str, test_ex_dir: &PathBuf, student_ex_dir: &
                 }
                 TestResult::FailedOutput(exp, act) => {
                     if print_it {
-                        println!("        ╭── [{}] {}", tc_name.yellow(), "Output mismatch".bold().red());
-                        println!("        │ Expected: {}", format!("{:?}", exp).green());
-                        println!("        ╰── Got     : {}\n", format!("{:?}", act).red());
+                        println!("        ╭── [{}] {}", tc_name.yellow(), t().mismatch_title.bold().red());
+                        println!("        │ {} {}", t().expected, format!("{:?}", exp).green());
+                        println!("        ╰── {} {}\n", t().got, format!("{:?}", act).red());
                     }
                     let src = fs::read_to_string(&tc.c_file).unwrap_or_default();
                     trace_block(trace, &loc, "output mismatch",
@@ -867,23 +1017,23 @@ fn run_exercise_parallel(ex_name: &str, test_ex_dir: &PathBuf, student_ex_dir: &
                 }
                 TestResult::CompilationError(err) => {
                     if print_it {
-                        println!("        ╭── [{}] {}", tc_name.yellow(), "Compilation / Execution Error".bold().red());
+                        println!("        ╭── [{}] {}", tc_name.yellow(), t().compile_title.bold().red());
                         for line in err.lines().take(2) {
                             println!("        │  {}", line.dimmed());
                         }
-                        println!("        ╰── (Full error log in the trace file)\n");
+                        println!("        ╰── {}\n", t().full_log_note);
                     }
                     trace_block(trace, &loc, "compilation / execution error", err);
                     printed_errors += 1;
                 }
                 TestResult::MemoryError(report) => {
                     if print_it {
-                        println!("        ╭── [{}] {}", tc_name.yellow(), "Memory error (AddressSanitizer)".bold().red());
+                        println!("        ╭── [{}] {}", tc_name.yellow(), t().memory_title.bold().red());
                         let summary = report.lines()
                             .find(|l| l.contains("SUMMARY: AddressSanitizer"))
                             .unwrap_or("invalid memory access detected");
                         println!("        │  {}", summary.dimmed());
-                        println!("        ╰── (Full ASan report in the trace file)\n");
+                        println!("        ╰── {}\n", t().asan_note);
                     }
                     let src = fs::read_to_string(&tc.c_file).unwrap_or_default();
                     trace_block(trace, &loc, "memory error (AddressSanitizer)",

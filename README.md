@@ -74,16 +74,28 @@ The binary is produced at `target/release/MiniMoulinette`.
 ### Usage
 
 ```sh
+# auto-detect the module from the current directory (name or exNN contents)
+mini-moulinette
+
 # grade a module in the current directory
 mini-moulinette C07
 
+# flags work on the short form too
+mini-moulinette C07 --strict --path sandbox/C07
+
 # explicit form with a student directory + strict mode
 mini-moulinette run C07 --path sandbox/C07 --strict
+
+# set the display language (en, fr, es)
+mini-moulinette lang en
 ```
 
 - `--path <dir>`: directory containing the submissions (`exNN/ft_xxx.c`).
   Default: `.`
 - `--strict`: stop grading as soon as one exercise fails.
+- `--lang <code>`: display language for this run (`en`, `fr`, `es`).
+  Persist it with `mini-moulinette lang <code>`, or force it with
+  `MINI_MOULINETTE_LANG`; otherwise the system `LANG` is used.
 
 ### Coverage
 
@@ -232,15 +244,27 @@ Le binaire est produit dans `target/release/MiniMoulinette`.
 ### Lancer
 
 ```sh
+# détecte automatiquement le module du dossier courant (nom ou contenu exNN)
+mini-moulinette
+
 # tester un module dans le dossier courant
 mini-moulinette C07
 
+# les flags marchent aussi sur la forme courte
+mini-moulinette C07 --strict --path sandbox/C07
+
 # forme explicite avec dossier étudiant + mode strict
 mini-moulinette run C07 --path sandbox/C07 --strict
+
+# définir la langue d'affichage (en, fr, es)
+mini-moulinette lang fr
 ```
 
 - `--path <dir>` : dossier contenant les rendus (`exNN/ft_xxx.c`). Défaut : `.`
 - `--strict` : arrête la notation dès qu'un exercice échoue.
+- `--lang <code>` : langue d'affichage pour ce run (`en`, `fr`, `es`).
+  Persistante via `mini-moulinette lang <code>`, ou forcée avec
+  `MINI_MOULINETTE_LANG` ; sinon la `LANG` système est utilisée.
 
 ### Couverture
 
