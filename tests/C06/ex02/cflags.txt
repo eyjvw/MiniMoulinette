@@ -1,0 +1,1 @@
+-Dmain=ft_student_main

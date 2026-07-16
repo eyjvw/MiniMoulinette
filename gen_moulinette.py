@@ -1,5 +1,5 @@
 
-"""Generate mini-moulinette test cases for the gap exercises (C00-C07, C06 skipped).
+"""Generate mini-moulinette test cases for the gap exercises (C00-C13).
 
 For each test: write test_NNN.c (a main that exercises the function and prints a
 stable, comparable result), compile it together with the reference solution(s)
@@ -64,6 +64,84 @@ def t_putchar():
             "#include <unistd.h>\nvoid ft_putchar(char c);\n"
             "int main(void){ft_putchar(%s);return 0;}\n" % lit)
     return tests
+
+
+def t_args(cases):
+    """Build test mains for the C06 programs.
+
+    The rendu owns main(), so it is renamed to ft_student_main via
+    -Dmain=ft_student_main (see CFLAGS) and called here with a handmade argv.
+    The test file undefines the macro so its own main() stays main().
+
+    argv entries are char[] rather than string literals: the real argv is
+    writable, and a rendu that sorts by swapping contents would segfault on
+    read-only literals.
+    """
+    tests = []
+    for av in cases:
+        decls = "".join('\tchar a%d[] = %s;\n' % (i, cstr(s))
+                        for i, s in enumerate(av))
+        names = ", ".join("a%d" % i for i in range(len(av)))
+        tests.append(
+            "#undef main\n"
+            "int ft_student_main(int argc, char **argv);\n"
+            "\n"
+            "int main(void)\n"
+            "{\n"
+            "%s"
+            "\tchar *av[] = {%s, 0};\n"
+            "\n"
+            "\treturn ft_student_main(%d, av);\n"
+            "}\n" % (decls, names, len(av)))
+    return tests
+
+
+def t_print_program_name():
+    return t_args([
+        ["./a.out"],
+        ["/usr/bin/ft_print_program_name"],
+        ["ft_print_program_name"],
+        ["a"],
+        ["./a.out", "ignored", "args"],
+        ["../../some/deep/path/prog"],
+    ])
+
+
+ARGV_SHAPES = [
+    ["./a.out"],
+    ["./a.out", "one"],
+    ["./a.out", "test1", "test2", "test3"],
+    ["./a.out", ""],
+    ["./a.out", "a b c"],
+    ["./a.out", "", "x", ""],
+    ["./a.out", "tab\there"],
+    ["./a.out", "-flag", "--long", "-"],
+    ["./a.out", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"],
+]
+
+
+def t_print_params():
+    return t_args(ARGV_SHAPES)
+
+
+def t_rev_params():
+    return t_args(ARGV_SHAPES)
+
+
+def t_sort_params():
+    return t_args([
+        ["./a.out"],
+        ["./a.out", "z"],
+        ["./a.out", "c", "a", "b"],
+        ["./a.out", "B", "a", "A", "b"],
+        ["./a.out", "ab", "a"],
+        ["./a.out", "same", "same", "same"],
+        ["./a.out", "", "a", ""],
+        ["./a.out", "10", "9", "1"],
+        ["./a.out", "Zebra", "apple", "Apple", "zebra"],
+        ["./a.out", "~", "!", "0", "Z", "_", "a"],
+        ["./a.out", "abc", "abd", "abb"],
+    ])
 
 
 def t_void_print(proto_name):
@@ -1243,6 +1321,15 @@ EXERCISES = [
     ("C05", "ex07", ["ft_find_next_prime.c"], [ref("C05", "ex07", "ft_find_next_prime.c")], t_find_next_prime),
     ("C05", "ex08", ["ft_ten_queens_puzzle.c"], [ref("C05", "ex08", "ft_ten_queens_puzzle.c")], t_ten_queens),
 
+    ("C06", "ex00", ["ft_print_program_name.c"],
+     [ref("C06", "ex00", "ft_print_program_name.c")], t_print_program_name),
+    ("C06", "ex01", ["ft_print_params.c"],
+     [ref("C06", "ex01", "ft_print_params.c")], t_print_params),
+    ("C06", "ex02", ["ft_rev_params.c"],
+     [ref("C06", "ex02", "ft_rev_params.c")], t_rev_params),
+    ("C06", "ex03", ["ft_sort_params.c"],
+     [ref("C06", "ex03", "ft_sort_params.c")], t_sort_params),
+
     ("C07", "ex00", ["ft_strdup.c"], [ref("C07", "ex00", "ft_strdup.c")], t_strdup),
     ("C07", "ex01", ["ft_range.c"], [ref("C07", "ex01", "ft_range.c")], t_range),
     ("C07", "ex02", ["ft_ultimate_range.c"], [ref("C07", "ex02", "ft_ultimate_range.c")], t_ultimate_range),
@@ -1340,6 +1427,14 @@ AUX_FILES = {
 }
 
 
+CFLAGS = {
+    ("C06", "ex00"): ["-Dmain=ft_student_main"],
+    ("C06", "ex01"): ["-Dmain=ft_student_main"],
+    ("C06", "ex02"): ["-Dmain=ft_student_main"],
+    ("C06", "ex03"): ["-Dmain=ft_student_main"],
+}
+
+
 ALLOWED = {
     ("C00", "ex00"): ["write"], ("C00", "ex01"): ["write"],
     ("C00", "ex02"): ["write"], ("C00", "ex03"): ["write"],
@@ -1364,6 +1459,8 @@ ALLOWED = {
     ("C05", "ex03"): [], ("C05", "ex04"): [],
     ("C05", "ex05"): [], ("C05", "ex06"): [], ("C05", "ex07"): [],
     ("C05", "ex08"): ["write"],
+    ("C06", "ex00"): ["write"], ("C06", "ex01"): ["write"],
+    ("C06", "ex02"): ["write"], ("C06", "ex03"): ["write"],
     ("C07", "ex00"): ["malloc"], ("C07", "ex01"): ["malloc"],
     ("C07", "ex02"): ["malloc"], ("C07", "ex03"): ["malloc"],
     ("C07", "ex04"): ["malloc", "free"], ("C07", "ex05"): ["malloc"],
@@ -1416,6 +1513,13 @@ def main():
         if (module, ex) in ALLOWED:
             with open(os.path.join(out_dir, "allowed.txt"), "w") as f:
                 f.write("\n".join(ALLOWED[(module, ex)]) + "\n")
+        cflags = CFLAGS.get((module, ex), [])
+        cflags_path = os.path.join(out_dir, "cflags.txt")
+        if cflags:
+            with open(cflags_path, "w") as f:
+                f.write("\n".join(cflags) + "\n")
+        elif os.path.exists(cflags_path):
+            os.remove(cflags_path)
 
         tests = builder()
         for i, src in enumerate(tests):
@@ -1432,7 +1536,7 @@ def main():
                 inc_args = []
                 for d in inc_dirs:
                     inc_args += ["-I", d]
-                comp = subprocess.run(CC + [cfile] + sources + inc_args + ["-o", binp],
+                comp = subprocess.run(CC + [cfile] + sources + cflags + inc_args + ["-o", binp],
                                       capture_output=True, text=True)
                 if comp.returncode != 0:
                     print("COMPILE FAIL %s/%s %s\n%s" % (module, ex, tname, comp.stderr))

@@ -102,13 +102,13 @@ mini-moulinette lang en
 | Module | Content | Tested |
 |--------|---------|--------|
 | C00–C05, C07 | functions | ✅ stdout diff |
+| C06 | program arguments (student main) | ✅ (main renamed via `-Dmain=`) |
 | C08 | headers / macros / structs | ✅ (`.h` via `-I`) |
 | C09 | ft_split + libft_creator.sh + Makefile | ✅ (incl. build-check) |
 | C10 | programs (ft_display_file, ft_cat, ft_tail, ft_hexdump) | ✅ build-check, diff vs system `cat`/`tail`/`hexdump` |
 | C11 | function pointers + do-op | ✅ (do-op via build-check) |
 | C12 | linked lists (student `ft_list.h` via `-I`) | ✅ |
 | C13 | binary trees (student `ft_btree.h` via `-I`) | ✅ |
-| C06 | program arguments (student main) | ⚠️ not tested |
 
 C12/C13 note: with gcc ≥ 15 (C23 by default) the subject's historical
 `int (*cmp)()` prototypes no longer compile — the tests use
@@ -136,6 +136,11 @@ in `sandbox/`, so the expected output reflects a correct implementation.
   it (`bash check.sh <student_dir>`, 30 s timeout) and grades on its exit
   code. Used for C09 ex00 (script), ex01 (Makefile), all of C10, and C11 ex05
   (do-op).
+
+An optional `cflags.txt` in the test directory adds flags to every `cc`
+invocation for that exercise. C06 uses it for `-Dmain=ft_student_main`: those
+submissions own `main()`, so it is renamed at preprocessing time and each test
+main calls it with a handmade `argv` (which also makes `argv[0]` testable).
 
 Per-test execution timeout: 5 s (infinite-loop guard).
 
@@ -271,13 +276,13 @@ mini-moulinette lang fr
 | Module | Contenu | Testé |
 |--------|---------|-------|
 | C00–C05, C07 | fonctions | ✅ diff stdout |
+| C06 | arguments (main étudiant) | ✅ (main renommé via `-Dmain=`) |
 | C08 | headers / macros / structs | ✅ (`.h` via `-I`) |
 | C09 | ft_split + libft_creator.sh + Makefile | ✅ (dont build-check) |
 | C10 | programmes (ft_display_file, ft_cat, ft_tail, ft_hexdump) | ✅ build-check, diff vs `cat`/`tail`/`hexdump` système |
 | C11 | pointeurs de fonction + do-op | ✅ (do-op via build-check) |
 | C12 | listes chaînées (`ft_list.h` étudiant via `-I`) | ✅ |
 | C13 | arbres binaires (`ft_btree.h` étudiant via `-I`) | ✅ |
-| C06 | arguments (main étudiant) | ⚠️ non testé |
 
 Note C12/C13 : compilés avec gcc ≥ 15 (C23 par défaut), les prototypes
 historiques `int (*cmp)()` du sujet ne compilent plus — les tests utilisent
@@ -305,6 +310,12 @@ de `sandbox/`, donc la sortie attendue reflète une implémentation correcte.
   l'exécute (`bash check.sh <dir_étudiant>`, timeout 30 s) et note sur son code
   de sortie. Utilisé pour C09 ex00 (script), ex01 (Makefile), tout C10 et
   C11 ex05 (do-op).
+
+Un `cflags.txt` optionnel dans le dossier de test ajoute des flags à chaque
+appel `cc` de l'exercice. C06 s'en sert pour `-Dmain=ft_student_main` : ces
+rendus possèdent leur `main()`, il est donc renommé au préprocesseur et chaque
+main de test l'appelle avec un `argv` fabriqué (ce qui rend aussi `argv[0]`
+testable).
 
 Timeout d'exécution par test : 5 s (anti-boucle infinie).
 

@@ -502,7 +502,8 @@ fn run_assignment(assignment: &str, path: &PathBuf, is_strict: bool) -> Result<(
 
 const COMPILER_SYMS: &[&str] = &["memset", "memcpy", "memmove"];
 
-fn find_forbidden(sources: &[&PathBuf], allowed: &[String], inc_dirs: &[&PathBuf]) -> Option<Vec<String>> {
+fn find_forbidden(sources: &[&PathBuf], allowed: &[String], inc_dirs: &[&PathBuf],
+                  cflags: &[String]) -> Option<Vec<String>> {
     use std::collections::HashSet;
 
     let tmp = std::env::temp_dir();
@@ -513,6 +514,7 @@ fn find_forbidden(sources: &[&PathBuf], allowed: &[String], inc_dirs: &[&PathBuf
         let obj = tmp.join(format!(".mm_nm_{}.o", uuid::Uuid::new_v4()));
         let mut cmd = Command::new("cc");
         cmd.arg("-c").arg(src);
+        cmd.args(cflags);
         for d in inc_dirs {
             cmd.arg("-I").arg(d);
         }
@@ -564,6 +566,17 @@ fn read_allowed(test_ex_dir: &PathBuf) -> Option<Vec<String>> {
         .collect())
 }
 
+fn read_cflags(test_ex_dir: &PathBuf) -> Vec<String> {
+    fs::read_to_string(test_ex_dir.join("cflags.txt"))
+        .map(|c| c
+            .lines()
+            .filter(|l| !l.trim_start().starts_with('#'))
+            .flat_map(|l| l.split_whitespace())
+            .map(|s| s.to_string())
+            .collect())
+        .unwrap_or_default()
+}
+
 fn forbidden_gate(ex_name: &str, sources: &[&PathBuf], test_ex_dir: &PathBuf,
                   student_ex_dir: &PathBuf, trace: &mut String) -> bool {
     let Some(allowed) = read_allowed(test_ex_dir) else { return false };
@@ -571,7 +584,8 @@ fn forbidden_gate(ex_name: &str, sources: &[&PathBuf], test_ex_dir: &PathBuf,
         return false;
     }
     let inc_dirs = [student_ex_dir, test_ex_dir];
-    match find_forbidden(sources, &allowed, &inc_dirs) {
+    let cflags = read_cflags(test_ex_dir);
+    match find_forbidden(sources, &allowed, &inc_dirs, &cflags) {
         Some(forb) if !forb.is_empty() => {
             println!("   ╰── {} {}\n", "✗".red().bold(),
                 fill(t().forbidden, &[&forb.join(", ").red().bold().to_string()]));
@@ -591,13 +605,14 @@ fn forbidden_gate(ex_name: &str, sources: &[&PathBuf], test_ex_dir: &PathBuf,
 }
 
 fn asan_recheck(test_c: &PathBuf, sources: &[&PathBuf], inc_dirs: &[&PathBuf],
-                workdir: &PathBuf) -> Option<String> {
+                workdir: &PathBuf, cflags: &[String]) -> Option<String> {
     use std::process::Stdio;
     use std::time::{Duration, Instant};
 
     let bin = workdir.join(format!(".asan_bin_{}", uuid::Uuid::new_v4()));
     let mut cmd = Command::new("cc");
     cmd.arg("-fsanitize=address").arg("-g").arg(test_c).args(sources);
+    cmd.args(cflags);
     for d in inc_dirs {
         cmd.arg("-I").arg(d);
     }
@@ -848,6 +863,8 @@ fn run_exercise_parallel(ex_name: &str, test_ex_dir: &PathBuf, student_ex_dir: &
         .filter(|p| p.extension().map_or(false, |e| e == "c"))
         .collect();
 
+    let cflags = read_cflags(test_ex_dir);
+
     let results: Vec<(&TestCase, TestResult)> = test_cases.par_iter().map(|tc| {
         let expected_output = fs::read_to_string(&tc.out_file).unwrap_or_default();
         let bin_name = format!(".test_bin_{}", uuid::Uuid::new_v4());
@@ -859,6 +876,7 @@ fn run_exercise_parallel(ex_name: &str, test_ex_dir: &PathBuf, student_ex_dir: &
             .arg("-Werror")
             .arg(&tc.c_file)
             .args(&source_files)
+            .args(&cflags)
             .arg("-I").arg(student_ex_dir)
             .arg("-I").arg(test_ex_dir)
             .arg("-o")
@@ -930,7 +948,7 @@ fn run_exercise_parallel(ex_name: &str, test_ex_dir: &PathBuf, student_ex_dir: &
         let res = match res {
             TestResult::Passed => {
                 let incs = [student_ex_dir, test_ex_dir];
-                match asan_recheck(&tc.c_file, &source_files, &incs, student_ex_dir) {
+                match asan_recheck(&tc.c_file, &source_files, &incs, student_ex_dir, &cflags) {
                     Some(report) => TestResult::MemoryError(report),
                     None => TestResult::Passed,
                 }
