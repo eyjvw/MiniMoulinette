@@ -1,40 +1,22 @@
-/* ************************************************************************** */
-/*                                                                            */
-/*                                                        :::      ::::::::   */
-/*   ft_atoi.c                                          :+:      :+:    :+:   */
-/*                                                    +:+ +:+         +:+     */
-/*   By: mtortrot <mtortrot@student.42.fr>          +#+  +:+       +#+        */
-/*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2022/09/18 10:35:04 by mtortrot          #+#    #+#             */
-/*   Updated: 2022/09/18 10:38:56 by mtortrot         ###   ########.fr       */
-/*                                                                            */
-/* ************************************************************************** */
-
 int    ft_atoi(char *str)
 {
-    int total;
-    int is_negative;
+    int result;
+    int sign;
 
-    total = 0;
-    is_negative = 0;
-    while (*str == ' ' || *str == '\n' || *str == '\r' || *str == '\f'
-            || *str == '\t' || *str == '\v' || *str == '+')
+    result = 0;
+    sign = 1;
+    while (*str == ' ' || (*str >= 9 && *str <= 13))
         str++;
-    if (*str == '-')
+    while (*str == '-' || *str == '+')
     {
-        is_negative = 1;
+        if (*str == '-')
+            sign = -sign;
         str++;
     }
-    while ((*str == '-') || (*str == '+'))
-        str++;
     while (*str >= '0' && *str <= '9')
     {
-        total *= 10;
-        total += (*str - 48);
+        result = (result * 10) + (*str - '0');
         str++;
     }
-    if (is_negative)
-        return (-total);
-    else
-        return (total);
+    return (sign * result);
 }
